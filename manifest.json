@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Mattel Hot Wheels Tracker",
+  "version": "2.1",
+  "description": "Tracks Mattel Hot Wheels drops, restocks, launches, hidden products, analytics, and Discord alerts.",
+
+  "permissions": [
+    "notifications",
+    "storage",
+    "alarms",
+    "tabs",
+    "offscreen"
+    
+  ],
+
+  "host_permissions": [
+    "https://creations.mattel.com/*",
+    "https://*.mattel.com/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Mattel Tracker"
+  },
+
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://creations.mattel.com/*",
+        "https://*.shopify.com/*"
+      ],
+      "js": ["autofill.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

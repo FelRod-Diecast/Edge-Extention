@@ -1,0 +1,191 @@
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-width: 650px;
+  min-height: 600px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: #0b0c10;
+  color: #ffffff;
+  font-family: "Segoe UI", sans-serif;
+}
+
+#app {
+  padding: 12px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+#app {
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+header h1 {
+  margin: 0;
+  color: #66fcf1;
+  font-size: 24px;
+}
+
+#scanNowBtn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  background: #45a29e;
+  color: #fff;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#scanNowBtn:hover {
+  background: #66fcf1;
+  color: #000;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.dashboard-card {
+  background: #1f2833;
+  border: 1px solid #2f4154;
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  color: white;
+  text-align: center;
+  transition: 0.2s ease;
+}
+
+.dashboard-card:hover {
+  border-color: #66fcf1;
+  transform: translateY(-2px);
+}
+
+.card-title {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.product-card {
+  background: #1f2833;
+  border: 1px solid #2f4154;
+  border-radius: 10px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.product-title {
+  font-size: 15px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.product-meta {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.product-link {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #45a29e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.product-link:hover {
+  background: #66fcf1;
+  color: black;
+}
+
+.product-image {
+  width: 75px;
+  height: 75px;
+  object-fit: contain;
+  border-radius: 4px;
+  float: right;
+  margin-left: 10px;
+  background: transparent;
+}
+
+#resultsContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+/* Live Stock Progress Bar */
+.stock-bar-container {
+  width: 100%;
+  background: #2a2a2a;
+  border-radius: 4px;
+  height: 8px;
+  margin: 6px 0;
+  overflow: hidden;
+  border: 1px solid #444;
+}
+
+.stock-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4500, #ffcc00, #28a745);
+  transition: width 0.3s ease;
+}
+
+.stock-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.stock-low {
+  background: #dc3545;
+  color: #fff;
+}
+
+.stock-medium {
+  background: #ffc107;
+  color: #000;
+}
+
+.stock-high {
+  background: #28a745;
+  color: #fff;
+}
+/* Caps bottom form panels to 650px AND centers them horizontally */
+.setting-group,
+.autofill-section,
+.webhook-section,
+form {
+  max-width: 650px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+/* Ensure inner input fields stretch to fill the 650px centered container */
+#discordWebhook,
+#afEmail,
+#afAddress,
+#afPhone {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.setting-group > div,
+.autofill-section > div {
+  max-width: 100%;
+  box-sizing: border-box;
+}

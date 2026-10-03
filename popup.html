@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mattel Dashboard</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+
+<div id="app">
+
+  <header>
+    <h1>🔥 Mattel Tracker</h1>
+    <div style="display: flex; gap: 8px;">
+      <button id="openTabBtn" style="border: none; border-radius: 8px; padding: 10px 14px; background: #ff4500; color: #fff; cursor: pointer; font-weight: bold;">↗️ Full View</button>
+      <button id="scanNowBtn">Scan Now</button>
+    </div>
+  </header>
+
+  <!-- ⚡ DROP & AUTO-POPOUT SETTINGS PANEL -->
+  <section class="settings-section" style="background: #1e1e1e; color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 14px; font-family: sans-serif;">
+    <h3 style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #ffcc00; display: flex; align-items: center; justify-content: space-between;">
+      ⚡ Drop & Popout Settings
+    </h3>
+
+    <!-- Auto-Popout Mode Selector -->
+    <div style="margin-bottom: 10px;">
+      <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 3px; color: #aaa;">AUTO-POPOUT TRIGGER MODE:</label>
+      <select id="popoutMode" style="width: 100%; padding: 6px; border-radius: 4px; background: #2a2a2a; color: #fff; border: 1px solid #444; font-size: 12px;">
+        <option value="ALL">Popout All Hidden & Restock Items</option>
+        <option value="RLC_ONLY" selected>RLC & Elite 64 Only</option>
+        <option value="KEYWORDS">Match Custom Keywords Only</option>
+        <option value="OFF">Disabled (Notifications Only)</option>
+      </select>
+    </div>
+
+    <!-- Keyword Filter -->
+    <div style="margin-bottom: 10px;">
+      <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 3px; color: #aaa;">MUST-MATCH KEYWORDS (comma separated):</label>
+      <input type="text" id="popoutKeywords" placeholder="e.g. Skyline, Porsche, Mustang, R34" style="width: 95%; padding: 6px; border-radius: 4px; background: #2a2a2a; color: #fff; border: 1px solid #444; font-size: 12px;">
+    </div>
+
+    <!-- Audio Alert Controls -->
+    <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+      <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="soundEnabled" checked style="cursor: pointer;">
+        Audio Sound Alert
+      </label>
+      <button id="testSoundBtn" style="padding: 4px 10px; background: #3a3a3a; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 11px; cursor: pointer;">🔊 Test Sound</button>
+    </div>
+
+    <!-- Save Action -->
+    <button id="saveSettingsBtn" style="width: 100%; padding: 8px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">
+      Save Settings
+    </button>
+    <span id="saveStatus" style="display: block; text-align: center; color: #28a745; font-size: 11px; margin-top: 4px; height: 14px;"></span>
+  </section>
+
+  <div class="dashboard-grid">
+
+    <button class="dashboard-card" id="showInStock">
+      <div class="card-title">🟢 In Stock</div>
+      <div class="card-count" id="activeStockCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showUpcoming">
+      <div class="card-title">🚀 Upcoming</div>
+      <div class="card-count" id="upcomingCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showHidden">
+      <div class="card-title">👻 Hidden</div>
+      <div class="card-count" id="hiddenCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showRLC">
+      <div class="card-title">🏁 RLC</div>
+      <div class="card-count" id="rlcCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showElite64">
+      <div class="card-title">💎 Elite 64</div>
+      <div class="card-count" id="elite64Count">0</div>
+    </button>
+
+       <button class="dashboard-card" id="showPremium">
+      <div class="card-title">🔥 Premium</div>
+      <div class="card-count" id="premiumCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showOther">
+      <div class="card-title">📦 Other</div>
+      <div class="card-count" id="otherCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showRestocks">
+      <div class="card-title">⚡ Restocks</div>
+      <div class="card-count" id="restockCount">0</div>
+    </button>
+
+    <button class="dashboard-card" id="showSoldOut">
+      <div class="card-title">🔴 Sold Out</div>
+      <div class="card-count" id="soldOutCount">0</div>
+    </button>
+
+  </div>
+
+  <div class="search-section">
+    <input
+      type="text"
+      id="searchBox"
+      placeholder="Search products..."
+    >
+  </div>
+
+  <section class="results-section">
+
+    <h2 id="resultsTitle">
+      Dashboard Results
+    </h2>
+
+    <div id="resultsContainer">
+
+    </div>
+
+  </section>
+
+</div>
+
+<script src="popup.js"></script>
+<!-- DISCORD WEBHOOK SETTINGS -->
+<div class="setting-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #333;">
+  <label for="discordWebhook" style="font-weight: bold; display: block; margin-bottom: 5px;">
+    💬 Discord Webhook URL
+  </label>
+  <input 
+    type="url" 
+    id="discordWebhook" 
+    placeholder="https://discord.com/api/webhooks/..." 
+    style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box;"
+  />
+  <div style="display: flex; gap: 8px; margin-top: 8px;">
+    <button id="saveWebhookBtn" style="flex: 1; padding: 6px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+      💾 Save Webhook
+    </button>
+    <button id="testWebhookBtn" style="flex: 1; padding: 6px; background: #5865F2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+      🧪 Test Discord
+    </button>
+  </div>
+</div>
+
+<!-- SHOPIFY AUTOFILL SETTINGS -->
+<div class="setting-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #333;">
+  <label style="font-weight: bold; display: block; margin-bottom: 8px;">
+    ⚡ Shopify Auto-Fill Profile
+  </label>
+  <input type="email" id="afEmail" placeholder="Email Address" style="width: 100%; margin-bottom: 6px; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+  <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+    <input type="text" id="afFirstName" placeholder="First Name" style="flex: 1; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+    <input type="text" id="afLastName" placeholder="Last Name" style="flex: 1; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+  </div>
+  <input type="text" id="afAddress" placeholder="Street Address" style="width: 100%; margin-bottom: 6px; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+  <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+    <input type="text" id="afCity" placeholder="City" style="flex: 1; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+    <input type="text" id="afZip" placeholder="Zip / Postal" style="width: 35%; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+  </div>
+  <input type="tel" id="afPhone" placeholder="Phone Number" style="width: 100%; margin-bottom: 8px; padding: 6px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;" />
+  <button id="saveAutofillBtn" style="width: 100%; padding: 8px; background: #ff4500; color: white; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">
+    💾 Save Auto-Fill Profile
+  </button>
+</div>
+
+</body>
+</html>
