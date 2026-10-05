@@ -78,8 +78,6 @@
       if (exact) return exact;
     }
 
-    // Last-resort relaxed title matching for normal Mattel cards whose
-    // stored title contains harmless punctuation/spacing differences.
     const compactTitle = title.replace(/[^a-z0-9]+/g, "");
 
     for (const products of sources) {
@@ -133,44 +131,45 @@
   }
 
   function sendUserTab(message) {
-    return new Promise(resolve => {
+    // Do not wait for the popup to remain open. The service worker owns
+    // the actual tab creation, so the user's click survives popup closure.
+    try {
       chrome.runtime.sendMessage(message, response => {
         if (chrome.runtime.lastError) {
           console.error(
             "[POPUP LINKS] Message failed:",
             chrome.runtime.lastError.message
           );
-          resolve({ ok: false, error: chrome.runtime.lastError.message });
           return;
         }
 
-        resolve(response || { ok: false });
+        if (!response?.ok) {
+          console.error(
+            "[POPUP LINKS] Background tab open failed:",
+            response?.error || "Unknown error"
+          );
+        }
       });
-    });
+    } catch (err) {
+      console.error("[POPUP LINKS] Failed to send tab request:", err);
+    }
   }
 
-  async function openProductUrl(product, fallbackUrl) {
+  function openProductUrl(product, fallbackUrl) {
     const url = product?.url || fallbackUrl;
     if (!url) {
       console.error("[POPUP LINKS] Product has no URL:", product);
       return;
     }
 
-    const result = await sendUserTab({
+    sendUserTab({
       action: "OPEN_USER_TAB",
       url
     });
-
-    if (!result?.ok) {
-      console.error(
-        "[POPUP LINKS] Failed to open product URL:",
-        result?.error || "Unknown error"
-      );
-    }
   }
 
-  async function openDirectCheckout(product, qty) {
-    const result = await sendUserTab({
+  function openDirectCheckout(product, qty) {
+    sendUserTab({
       action: "OPEN_USER_TAB",
       checkout: true,
       handle: product?.handle || "",
@@ -178,20 +177,13 @@
       qty,
       url: product?.url || ""
     });
-
-    if (!result?.ok) {
-      console.error(
-        "[POPUP LINKS] Failed to open checkout URL:",
-        result?.error || "Unknown error"
-      );
-    }
   }
 
   function installLinkHandlers() {
     const container = document.getElementById("resultsContainer");
     if (!container) return;
 
-    container.addEventListener("click", async event => {
+    container.addEventListener("click", event => {
       const button = event.target.closest("button");
       if (!button) return;
 
@@ -203,7 +195,7 @@
 
       if (!isView && !isCheckout) return;
 
-      // Always stop the original popup.js window.open() handlers first.
+      // Capture phase stops popup.js from running its original window.open().
       event.preventDefault();
       event.stopImmediatePropagation();
 
@@ -217,7 +209,7 @@
       }
 
       if (isView) {
-        await openProductUrl(product);
+        openProductUrl(product);
         return;
       }
 
@@ -228,8 +220,10 @@
       );
 
       button.textContent = "⏳ Opening...";
-      await openDirectCheckout(product, qty);
-      button.textContent = "⚡ Direct Checkout";
+      openDirectCheckout(product, qty);
+      setTimeout(() => {
+        if (button.isConnected) button.textContent = "⚡ Direct Checkout";
+      }, 500);
     }, true);
   }
 
