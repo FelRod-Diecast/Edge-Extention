@@ -1,17 +1,11 @@
 /*
  * Popup display fixes.
  *
- * The original popup renderer sorts several views by stats.firstSeen.
- * That is tracker-discovery order, not product recency, so old items
- * can stay ahead of newly added Mattel products forever.
+ * Keeps the popup's existing rendering and sorting behavior, but makes
+ * product-card actions reliable across every normal dashboard view.
  *
- * This file corrects the rendered card order after popup.js renders it.
- * It uses the already-loaded allProducts array from popup.js instead of
- * requesting dashboard data again, so the sort is based on the exact
- * product objects the popup is displaying.
- *
- * Dedicated views keep their intentional ordering:
- * Upcoming, Hidden, Restocks, and Sold Out History.
+ * IMPORTANT: this file never opens tabs by itself. It only responds to an
+ * actual user click and asks the background worker to create that one tab.
  */
 (() => {
   "use strict";
@@ -43,9 +37,7 @@
     ];
 
     for (const value of candidates) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
-      }
+      if (typeof value === "number" && Number.isFinite(value)) return value;
 
       if (typeof value === "string") {
         const numeric = Number(value);
@@ -59,13 +51,47 @@
     return 0;
   }
 
-  function productForCard(card) {
-    const title = card.querySelector(".product-title")?.textContent?.trim() || "";
-    if (!title || !Array.isArray(allProducts)) return null;
+  function normalizeTitle(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
 
-    return allProducts.find(product =>
-      String(product?.title || "").trim() === title
-    ) || null;
+  function productForCard(card) {
+    const title = normalizeTitle(
+      card.querySelector(".product-title")?.textContent
+    );
+
+    if (!title) return null;
+
+    const sources = [];
+
+    if (Array.isArray(currentView)) sources.push(currentView);
+    if (Array.isArray(allProducts)) sources.push(allProducts);
+
+    for (const products of sources) {
+      const exact = products.find(product =>
+        normalizeTitle(product?.title) === title
+      );
+
+      if (exact) return exact;
+    }
+
+    // Last-resort relaxed title matching for normal Mattel cards whose
+    // stored title contains harmless punctuation/spacing differences.
+    const compactTitle = title.replace(/[^a-z0-9]+/g, "");
+
+    for (const products of sources) {
+      const relaxed = products.find(product => {
+        const candidate = normalizeTitle(product?.title).replace(/[^a-z0-9]+/g, "");
+        return candidate && candidate === compactTitle;
+      });
+
+      if (relaxed) return relaxed;
+    }
+
+    return null;
   }
 
   function sortRenderedCards() {
@@ -92,23 +118,15 @@
     });
 
     ranked.sort((a, b) => {
-      if (a.id && b.id && a.id !== b.id) {
-        return b.id - a.id;
-      }
-
-      if (a.time !== b.time) {
-        return b.time - a.time;
-      }
-
+      if (a.id && b.id && a.id !== b.id) return b.id - a.id;
+      if (a.time !== b.time) return b.time - a.time;
       return a.index - b.index;
     });
 
     sorting = true;
 
     const fragment = document.createDocumentFragment();
-    for (const entry of ranked) {
-      fragment.appendChild(entry.card);
-    }
+    for (const entry of ranked) fragment.appendChild(entry.card);
 
     container.appendChild(fragment);
     sorting = false;
@@ -116,24 +134,27 @@
 
   function sendUserTab(message) {
     return new Promise(resolve => {
-      chrome.runtime.sendMessage(
-        message,
-        response => {
-          if (chrome.runtime.lastError) {
-            console.error("[POPUP LINKS] Message failed:", chrome.runtime.lastError.message);
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
-            return;
-          }
-
-          resolve(response || { ok: false });
+      chrome.runtime.sendMessage(message, response => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "[POPUP LINKS] Message failed:",
+            chrome.runtime.lastError.message
+          );
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+          return;
         }
-      );
+
+        resolve(response || { ok: false });
+      });
     });
   }
 
   async function openProductUrl(product, fallbackUrl) {
     const url = product?.url || fallbackUrl;
-    if (!url) return;
+    if (!url) {
+      console.error("[POPUP LINKS] Product has no URL:", product);
+      return;
+    }
 
     const result = await sendUserTab({
       action: "OPEN_USER_TAB",
@@ -141,7 +162,10 @@
     });
 
     if (!result?.ok) {
-      console.error("[POPUP LINKS] Failed to open product URL:", result?.error || "Unknown error");
+      console.error(
+        "[POPUP LINKS] Failed to open product URL:",
+        result?.error || "Unknown error"
+      );
     }
   }
 
@@ -156,7 +180,10 @@
     });
 
     if (!result?.ok) {
-      console.error("[POPUP LINKS] Failed to open checkout URL:", result?.error || "Unknown error");
+      console.error(
+        "[POPUP LINKS] Failed to open checkout URL:",
+        result?.error || "Unknown error"
+      );
     }
   }
 
@@ -171,27 +198,38 @@
       const card = button.closest(".product-card");
       if (!card) return;
 
-      const product = productForCard(card);
-      if (!product) return;
+      const isView = button.classList.contains("product-link");
+      const isCheckout = button.textContent?.includes("Direct Checkout");
 
-      if (button.classList.contains("product-link")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
+      if (!isView && !isCheckout) return;
+
+      // Always stop the original popup.js window.open() handlers first.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const product = productForCard(card);
+      if (!product) {
+        console.error(
+          "[POPUP LINKS] Could not match clicked card to product.",
+          card.querySelector(".product-title")?.textContent
+        );
+        return;
+      }
+
+      if (isView) {
         await openProductUrl(product);
         return;
       }
 
-      if (button.textContent?.includes("Direct Checkout")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
+      const qtyInput = card.querySelector('input[type="number"]');
+      const qty = Math.min(
+        10,
+        Math.max(1, parseInt(qtyInput?.value, 10) || 1)
+      );
 
-        const qtyInput = card.querySelector('input[type="number"]');
-        const qty = Math.min(10, Math.max(1, parseInt(qtyInput?.value, 10) || 1));
-
-        button.textContent = "⏳ Opening...";
-        await openDirectCheckout(product, qty);
-        button.textContent = "⚡ Direct Checkout";
-      }
+      button.textContent = "⏳ Opening...";
+      await openDirectCheckout(product, qty);
+      button.textContent = "⚡ Direct Checkout";
     }, true);
   }
 
