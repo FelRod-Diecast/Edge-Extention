@@ -204,6 +204,25 @@
     }
   }
 
+  // Popup-only tab opener. This is intentionally message-driven and has
+  // NO automatic scanner/popout path. A tab is created only after the
+  // popup explicitly sends OPEN_USER_TAB from a button click.
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.action !== "OPEN_USER_TAB") return;
+
+    const url = typeof msg.url === "string" ? msg.url.trim() : "";
+    if (!/^https:\/\/creations\.mattel\.com\//i.test(url)) {
+      sendResponse({ ok: false, error: "Invalid Mattel URL" });
+      return true;
+    }
+
+    chrome.tabs.create({ url, active: true })
+      .then(() => sendResponse({ ok: true }))
+      .catch(err => sendResponse({ ok: false, error: String(err?.message || err) }));
+
+    return true;
+  });
+
   function install() {
     if (typeof self.checkLiveInventory === "function") {
       const originalCheckLiveInventory = self.checkLiveInventory;
