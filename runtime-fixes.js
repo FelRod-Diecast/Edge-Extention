@@ -5,11 +5,19 @@
  * available even while the product page is still "Coming Soon".
  * The tracker must treat a future launch as NOT PURCHASABLE until
  * its scheduled launch timestamp has arrived.
+ *
+ * The important fallback here is the live Mattel product page. The
+ * normal stock scan runs before the Upcoming scan, so relying only on
+ * upcomingProducts storage is not sufficient for a newly discovered
+ * launch. For RLC / Red Line Club / Elite 64 products that report
+ * available=true with no positive inventory quantity, we verify the
+ * product page's actual launch date before accepting it as in stock.
  */
 (() => {
   "use strict";
 
   let scheduledLaunches = new Map();
+  const pageLaunchCache = new Map();
 
   async function refreshScheduledLaunches() {
     try {
@@ -41,9 +49,92 @@
     return entry.timestamp > Date.now() ? entry : null;
   }
 
-  function suppressFutureLaunchInventory(handle, inventory) {
-    const future = getFutureLaunch(handle);
+  function shouldVerifyProductPage(handle, inventory) {
+    if (!inventory?.ok || inventory.available !== true) {
+      return false;
+    }
 
+    const quantity = Number(inventory.quantity);
+    const noPositiveQuantity =
+      inventory.quantity === null ||
+      inventory.quantity === undefined ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0;
+
+    if (!noPositiveQuantity) return false;
+
+    const value = String(handle || "").toLowerCase();
+
+    return (
+      value.includes("rlc") ||
+      value.includes("red-line-club") ||
+      value.includes("elite-64") ||
+      value.includes("elite64")
+    );
+  }
+
+  async function detectFutureLaunchFromPage(handle) {
+    if (!shouldVerifyProductPage(handle, { ok: true, available: true, quantity: 0 })) {
+      return null;
+    }
+
+    const cached = pageLaunchCache.get(handle);
+    if (cached) {
+      if (cached.timestamp > Date.now()) return cached;
+      pageLaunchCache.delete(handle);
+    }
+
+    try {
+      const response = await fetch(
+        `https://creations.mattel.com/products/${handle}`,
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) return null;
+
+      const html = await response.text();
+      if (!html || /Page not found/i.test(html)) return null;
+
+      const match = html.match(
+        /Launches\s+([A-Za-z]+\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:am|pm)\s*PT)/i
+      );
+
+      if (!match?.[1]) return null;
+
+      const parser = self.parseMattelLaunchDate;
+      if (typeof parser !== "function") return null;
+
+      const parsed = parser(match[1]);
+      if (!parsed || !Number.isFinite(parsed.timestamp)) return null;
+
+      const entry = {
+        timestamp: parsed.timestamp,
+        launchDate: parsed.text || match[1]
+      };
+
+      pageLaunchCache.set(handle, entry);
+
+      if (entry.timestamp > Date.now()) {
+        scheduledLaunches.set(handle, entry);
+
+        console.log(
+          `[SCHEDULED STOCK] Live page confirms future launch for ${handle}: ${entry.launchDate}`
+        );
+
+        return entry;
+      }
+
+      return null;
+    } catch (err) {
+      console.warn(
+        `[SCHEDULED STOCK] Could not verify launch page for ${handle}:`,
+        err
+      );
+      return null;
+    }
+  }
+
+  function suppressFutureLaunchInventory(handle, inventory, future) {
     if (!future || !inventory?.ok) {
       return inventory;
     }
@@ -104,7 +195,14 @@
         }
 
         const inventory = await originalCheckLiveInventory(handle);
-        return suppressFutureLaunchInventory(handle, inventory);
+
+        let future = getFutureLaunch(handle);
+
+        if (!future && shouldVerifyProductPage(handle, inventory)) {
+          future = await detectFutureLaunchFromPage(handle);
+        }
+
+        return suppressFutureLaunchInventory(handle, inventory, future);
       };
     }
 
