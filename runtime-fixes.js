@@ -210,15 +210,52 @@
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.action !== "OPEN_USER_TAB") return;
 
-    const url = typeof msg.url === "string" ? msg.url.trim() : "";
-    if (!/^https:\/\/creations\.mattel\.com\//i.test(url)) {
-      sendResponse({ ok: false, error: "Invalid Mattel URL" });
-      return true;
-    }
+    const requestedUrl = typeof msg.url === "string" ? msg.url.trim() : "";
+    const handle = typeof msg.handle === "string" ? msg.handle.trim() : "";
+    const requestedVariant = Number(msg.variantId);
+    const qty = Math.min(10, Math.max(1, Number(msg.qty) || 1));
 
-    chrome.tabs.create({ url, active: true })
-      .then(() => sendResponse({ ok: true }))
-      .catch(err => sendResponse({ ok: false, error: String(err?.message || err) }));
+    (async () => {
+      let url = requestedUrl;
+
+      if (msg.checkout === true) {
+        let variantId = Number.isFinite(requestedVariant) && requestedVariant > 0
+          ? requestedVariant
+          : null;
+
+        if (!variantId && handle) {
+          try {
+            const response = await fetch(
+              `https://creations.mattel.com/products/${handle}.js`,
+              { cache: "no-store" }
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              variantId = Number(data?.variants?.[0]?.id) || null;
+            }
+          } catch (err) {
+            console.error("[POPUP LINKS] Failed to fetch checkout variant:", err);
+          }
+        }
+
+        if (variantId) {
+          url = `https://creations.mattel.com/cart/${variantId}:${qty}`;
+        }
+      }
+
+      if (!/^https:\/\/creations\.mattel\.com\//i.test(url)) {
+        sendResponse({ ok: false, error: "Invalid Mattel URL" });
+        return;
+      }
+
+      try {
+        await chrome.tabs.create({ url, active: true });
+        sendResponse({ ok: true, url });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
 
     return true;
   });
