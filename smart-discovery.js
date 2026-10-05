@@ -390,7 +390,9 @@
       notifyBrowser("👻 NEW HIDDEN DROP FOUND", product.title, product.directCartUrl, true);
       sendWebhookEmbed({
         title: "👻 NEW HIDDEN DROP FOUND",
-        description: `**[${product.title}](${product.url})**\n\n⚡ **[DIRECT CHECKOUT LINK](${product.directCartUrl})**`,
+        description: `**[${product.title}](${product.url})**\
+\
+⚡ **[DIRECT CHECKOUT LINK](${product.directCartUrl})**`,
         url: product.url,
         color: 8711167,
         fields: [
