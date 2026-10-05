@@ -10,3 +10,13 @@ try {
     err
   );
 }
+
+// Protect future launches from being misclassified as currently purchasable.
+try {
+  importScripts("runtime-fixes.js");
+} catch (err) {
+  console.error(
+    "[RUNTIME FIXES] Load failed; existing scanner remains active:",
+    err
+  );
+}
