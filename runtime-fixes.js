@@ -21,14 +21,29 @@
 
   async function refreshScheduledLaunches() {
     try {
-      const result = await chrome.storage.local.get(["upcomingProducts"]);
+      const result = await chrome.storage.local.get(["upcomingProducts", "itemsState"]);
       const next = new Map();
+
+      for (const product of Object.values(result.itemsState || {})) {
+        if (!product?.handle || product.upcoming !== true) continue;
+
+        const timestamp = Number(
+          product.launchTimestamp || product.scheduledLaunchTimestamp
+        );
+
+        if (Number.isFinite(timestamp)) {
+          next.set(product.handle, {
+            timestamp,
+            launchDate: product.launchDate || product.scheduledLaunchDate || null
+          });
+        }
+      }
 
       for (const product of result.upcomingProducts || []) {
         if (!product?.handle) continue;
 
         const timestamp = Number(product.launchTimestamp);
-        if (Number.isFinite(timestamp)) {
+        if (Number.isFinite(timestamp) && !next.has(product.handle)) {
           next.set(product.handle, {
             timestamp,
             launchDate: product.launchDate || null
@@ -105,11 +120,15 @@
       if (typeof parser !== "function") return null;
 
       const parsed = parser(match[1]);
-      if (!parsed || !Number.isFinite(parsed.timestamp)) return null;
+      const timestamp = parsed instanceof Date
+        ? parsed.getTime()
+        : Number(parsed?.timestamp);
+
+      if (!Number.isFinite(timestamp)) return null;
 
       const entry = {
-        timestamp: parsed.timestamp,
-        launchDate: parsed.text || match[1]
+        timestamp,
+        launchDate: parsed?.text || match[1]
       };
 
       pageLaunchCache.set(handle, entry);
