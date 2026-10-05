@@ -114,46 +114,49 @@
     sorting = false;
   }
 
+  function sendUserTab(message) {
+    return new Promise(resolve => {
+      chrome.runtime.sendMessage(
+        message,
+        response => {
+          if (chrome.runtime.lastError) {
+            console.error("[POPUP LINKS] Message failed:", chrome.runtime.lastError.message);
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+
+          resolve(response || { ok: false });
+        }
+      );
+    });
+  }
+
   async function openProductUrl(product, fallbackUrl) {
     const url = product?.url || fallbackUrl;
     if (!url) return;
 
-    try {
-      await chrome.tabs.create({ url });
-    } catch (err) {
-      console.error("[POPUP LINKS] Failed to open product URL:", err);
+    const result = await sendUserTab({
+      action: "OPEN_USER_TAB",
+      url
+    });
+
+    if (!result?.ok) {
+      console.error("[POPUP LINKS] Failed to open product URL:", result?.error || "Unknown error");
     }
   }
 
   async function openDirectCheckout(product, qty) {
-    let targetVariant = product?.variantId || product?.variants?.[0]?.id;
+    const result = await sendUserTab({
+      action: "OPEN_USER_TAB",
+      checkout: true,
+      handle: product?.handle || "",
+      variantId: product?.variantId || product?.variants?.[0]?.id || null,
+      qty,
+      url: product?.url || ""
+    });
 
-    if (!targetVariant && product?.handle) {
-      try {
-        const response = await fetch(
-          `https://creations.mattel.com/products/${product.handle}.js`,
-          { cache: "no-store" }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          targetVariant = data.variants?.[0]?.id;
-        }
-      } catch (err) {
-        console.error("[POPUP LINKS] Failed to fetch variant ID:", err);
-      }
-    }
-
-    const url = targetVariant
-      ? `https://creations.mattel.com/cart/${targetVariant}:${qty}`
-      : product?.url;
-
-    if (!url) return;
-
-    try {
-      await chrome.tabs.create({ url });
-    } catch (err) {
-      console.error("[POPUP LINKS] Failed to open checkout URL:", err);
+    if (!result?.ok) {
+      console.error("[POPUP LINKS] Failed to open checkout URL:", result?.error || "Unknown error");
     }
   }
 
@@ -183,7 +186,7 @@
         event.stopImmediatePropagation();
 
         const qtyInput = card.querySelector('input[type="number"]');
-        const qty = Math.max(1, parseInt(qtyInput?.value, 10) || 1);
+        const qty = Math.min(10, Math.max(1, parseInt(qtyInput?.value, 10) || 1));
 
         button.textContent = "⏳ Opening...";
         await openDirectCheckout(product, qty);
