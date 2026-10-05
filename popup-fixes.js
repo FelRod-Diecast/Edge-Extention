@@ -92,8 +92,6 @@
     });
 
     ranked.sort((a, b) => {
-      // Shopify product IDs increase as products are created, so this is
-      // the primary recency signal. Stored timestamps are only a fallback.
       if (a.id && b.id && a.id !== b.id) {
         return b.id - a.id;
       }
@@ -116,7 +114,87 @@
     sorting = false;
   }
 
-  function installObserver() {
+  async function openProductUrl(product, fallbackUrl) {
+    const url = product?.url || fallbackUrl;
+    if (!url) return;
+
+    try {
+      await chrome.tabs.create({ url });
+    } catch (err) {
+      console.error("[POPUP LINKS] Failed to open product URL:", err);
+    }
+  }
+
+  async function openDirectCheckout(product, qty) {
+    let targetVariant = product?.variantId || product?.variants?.[0]?.id;
+
+    if (!targetVariant && product?.handle) {
+      try {
+        const response = await fetch(
+          `https://creations.mattel.com/products/${product.handle}.js`,
+          { cache: "no-store" }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          targetVariant = data.variants?.[0]?.id;
+        }
+      } catch (err) {
+        console.error("[POPUP LINKS] Failed to fetch variant ID:", err);
+      }
+    }
+
+    const url = targetVariant
+      ? `https://creations.mattel.com/cart/${targetVariant}:${qty}`
+      : product?.url;
+
+    if (!url) return;
+
+    try {
+      await chrome.tabs.create({ url });
+    } catch (err) {
+      console.error("[POPUP LINKS] Failed to open checkout URL:", err);
+    }
+  }
+
+  function installLinkHandlers() {
+    const container = document.getElementById("resultsContainer");
+    if (!container) return;
+
+    container.addEventListener("click", async event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+
+      const card = button.closest(".product-card");
+      if (!card) return;
+
+      const product = productForCard(card);
+      if (!product) return;
+
+      if (button.classList.contains("product-link")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        await openProductUrl(product);
+        return;
+      }
+
+      if (button.textContent?.includes("Direct Checkout")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const qtyInput = card.querySelector('input[type="number"]');
+        const qty = Math.max(1, parseInt(qtyInput?.value, 10) || 1);
+
+        button.textContent = "⏳ Opening...";
+        await openDirectCheckout(product, qty);
+        button.textContent = "⚡ Direct Checkout";
+      }
+    }, true);
+  }
+
+  function install() {
+    installLinkHandlers();
+
     const container = document.getElementById("resultsContainer");
     if (!container) return;
 
@@ -134,8 +212,8 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", installObserver, { once: true });
+    document.addEventListener("DOMContentLoaded", install, { once: true });
   } else {
-    installObserver();
+    install();
   }
 })();
