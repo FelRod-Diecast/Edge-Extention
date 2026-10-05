@@ -105,6 +105,14 @@
       return a.index - b.index;
     });
 
+        // Do not re-append cards when they are already sorted.
+    // Re-appending triggers the MutationObserver again and can starve popup clicks.
+    const alreadySorted = ranked.every(
+      (entry, index) => entry.card === cards[index]
+    );
+
+    if (alreadySorted) return;
+
     sorting = true;
 
     const fragment = document.createDocumentFragment();
