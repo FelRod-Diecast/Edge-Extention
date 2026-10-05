@@ -1,15 +1,22 @@
 /*
- * Popup display fixes:
- * 1) Never show a scheduled future launch in an In Stock category.
- * 2) Sort normal product lists by newest Shopify product id first,
- *    falling back to stored timestamps when an id is unavailable.
+ * Popup display fixes.
  *
- * Upcoming / Hidden / Restock / Sold Out History keep their own ordering.
+ * The original popup renderer sorts several views by stats.firstSeen.
+ * That is tracker-discovery order, not product recency, so old items
+ * can stay ahead of newly added Mattel products forever.
+ *
+ * This file corrects the rendered card order after popup.js renders it.
+ * It uses the already-loaded allProducts array from popup.js instead of
+ * requesting dashboard data again, so the sort is based on the exact
+ * product objects the popup is displaying.
+ *
+ * Dedicated views keep their intentional ordering:
+ * Upcoming, Hidden, Restocks, and Sold Out History.
  */
 (() => {
   "use strict";
 
-  const NORMAL_LIST_TITLES = new Set([
+  const SORT_NEWEST_FIRST = new Set([
     "Dashboard Results",
     "🟢 In Stock Products",
     "🏁 RLC In Stock",
@@ -18,7 +25,6 @@
     "📦 Other In Stock"
   ]);
 
-  let productCache = [];
   let sorting = false;
 
   function numericId(product) {
@@ -31,11 +37,15 @@
       product?.publishedAt,
       product?.published_at,
       product?.addedDate,
+      product?.createdAt,
+      product?.created_at,
       product?.stats?.firstSeen
     ];
 
     for (const value of candidates) {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
 
       if (typeof value === "string") {
         const numeric = Number(value);
@@ -49,55 +59,20 @@
     return 0;
   }
 
-  async function refreshCache() {
-    try {
-      const response = await new Promise(resolve => {
-        chrome.runtime.sendMessage({ action: "getDashboardData" }, resolve);
-      });
-      productCache = response?.products || [];
-    } catch (_) {
-      productCache = [];
-    }
+  function productForCard(card) {
+    const title = card.querySelector(".product-title")?.textContent?.trim() || "";
+    if (!title || !Array.isArray(allProducts)) return null;
+
+    return allProducts.find(product =>
+      String(product?.title || "").trim() === title
+    ) || null;
   }
 
-  function isFutureLaunch(product) {
-    const timestampValue = Number(product?.scheduledLaunchTimestamp || product?.launchTimestamp);
-    return Number.isFinite(timestampValue) && timestampValue > Date.now();
-  }
-
-  function applyFutureLaunchGuard() {
-    const title = document.getElementById("resultsTitle")?.textContent?.trim() || "";
-    if (!NORMAL_LIST_TITLES.has(title)) return;
-
-    const futureTitles = new Set(
-      productCache
-        .filter(isFutureLaunch)
-        .map(product => String(product.title || "").trim())
-        .filter(Boolean)
-    );
-
-    if (!futureTitles.size) return;
-
-    const container = document.getElementById("resultsContainer");
-    if (!container) return;
-
-    for (const card of container.querySelectorAll(".product-card")) {
-      const titleNode = card.querySelector(".product-title");
-      const titleText = titleNode?.textContent?.trim() || "";
-
-      if (!futureTitles.has(titleText)) continue;
-
-      // Remove the card from a normal in-stock view. Do not touch
-      // the dedicated Upcoming view.
-      card.remove();
-    }
-  }
-
-  function sortNormalCards() {
+  function sortRenderedCards() {
     if (sorting) return;
 
     const title = document.getElementById("resultsTitle")?.textContent?.trim() || "";
-    if (!NORMAL_LIST_TITLES.has(title)) return;
+    if (!SORT_NEWEST_FIRST.has(title)) return;
 
     const container = document.getElementById("resultsContainer");
     if (!container) return;
@@ -105,15 +80,8 @@
     const cards = [...container.querySelectorAll(".product-card")];
     if (cards.length < 2) return;
 
-    const byTitle = new Map();
-    for (const product of productCache) {
-      const key = String(product.title || "").trim();
-      if (key && !byTitle.has(key)) byTitle.set(key, product);
-    }
-
     const ranked = cards.map((card, index) => {
-      const titleText = card.querySelector(".product-title")?.textContent?.trim() || "";
-      const product = byTitle.get(titleText);
+      const product = productForCard(card);
 
       return {
         card,
@@ -124,37 +92,50 @@
     });
 
     ranked.sort((a, b) => {
-      if (a.id && b.id && a.id !== b.id) return b.id - a.id;
-      if (a.time !== b.time) return b.time - a.time;
+      // Shopify product IDs increase as products are created, so this is
+      // the primary recency signal. Stored timestamps are only a fallback.
+      if (a.id && b.id && a.id !== b.id) {
+        return b.id - a.id;
+      }
+
+      if (a.time !== b.time) {
+        return b.time - a.time;
+      }
+
       return a.index - b.index;
     });
 
     sorting = true;
+
     const fragment = document.createDocumentFragment();
-    for (const entry of ranked) fragment.appendChild(entry.card);
+    for (const entry of ranked) {
+      fragment.appendChild(entry.card);
+    }
+
     container.appendChild(fragment);
     sorting = false;
   }
 
-  async function refreshAndFix() {
-    await refreshCache();
-    applyFutureLaunchGuard();
-    sortNormalCards();
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
+  function installObserver() {
     const container = document.getElementById("resultsContainer");
     if (!container) return;
 
     const observer = new MutationObserver(() => {
       if (sorting) return;
-      setTimeout(() => {
-        refreshAndFix();
-      }, 0);
+      setTimeout(sortRenderedCards, 0);
     });
 
-    observer.observe(container, { childList: true, subtree: true });
+    observer.observe(container, {
+      childList: true,
+      subtree: true
+    });
 
-    refreshAndFix();
-  });
+    setTimeout(sortRenderedCards, 0);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installObserver, { once: true });
+  } else {
+    installObserver();
+  }
 })();
