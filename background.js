@@ -1041,11 +1041,8 @@ async function scanUpcomingProducts() {
       ).toLowerCase();
 
     if (
-      !product.available &&
-      (
-        title.includes("rlc") ||
-        title.includes("elite 64")
-      )
+      title.includes("rlc") ||
+      title.includes("elite 64")
     ) {
       candidatesMap.set(
         product.handle,
@@ -1263,7 +1260,7 @@ async function scanUpcomingProducts() {
       if (
         launchInfo.upcoming &&
         launchTime > now &&
-        !stored &&
+        !alertRecord?.alerted &&
         canAlertItem(
           upcomingKey,
           "UPCOMING_LAUNCH"
