@@ -25,7 +25,7 @@
   function isAdvanceButton(el) {
     if (!el || isFinalPurchaseButton(el)) return false;
     const text = buttonText(el);
-    return /continue to shipping|continue to payment|continue|next|review order/.test(text);
+    return /continue to shipping|continue to payment|review order/.test(text);
   }
 
   function ensureStatus() {
@@ -127,6 +127,13 @@
 
   let lastUrl = location.href;
   let advanceTimer = null;
+  let runScheduled = false;
+
+  function scheduleRun() {
+    if (runScheduled) return;
+    runScheduled = true;
+    setTimeout(() => { runScheduled = false; run(); }, 350);
+  }
 
   async function run() {
     if (!isCheckoutPage()) return;
