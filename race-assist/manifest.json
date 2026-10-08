@@ -3,7 +3,7 @@
   "name": "RLC Race Assist (Test)",
   "version": "0.1.0",
   "description": "Independent RLC checkout-assistance test extension. Does not modify the Mattel tracker.",
-  "permissions": ["storage", "tabs", "windows", "alarms", "notifications"],
+  "permissions": ["storage", "tabs", "windows", "alarms"],
   "host_permissions": ["https://creations.mattel.com/*"],
   "background": { "service_worker": "background.js" },
   "action": {
