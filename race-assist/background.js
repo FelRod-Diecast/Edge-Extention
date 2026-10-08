@@ -24,6 +24,7 @@ function normalizeProduct(p) {
     variantId: p.variantId ? String(p.variantId) : null,
     assistance: p.assistance !== false,
     status: p.status || "WATCHING",
+    wasAvailable: Boolean(p.wasAvailable),
     lastChecked: p.lastChecked || 0,
     lastError: null
   };
@@ -74,6 +75,11 @@ async function openCheckout(product) {
   });
 }
 
+async function triggerCheckout(product) {
+  await openAssistant(product);
+  await openCheckout(product);
+}
+
 async function checkSelected() {
   if (checking) return;
   checking = true;
@@ -82,19 +88,30 @@ async function checkSelected() {
     for (const saved of entries) {
       try {
         const live = await getProduct(saved.handle);
+        const wasAvailable = Boolean(saved.wasAvailable);
+
         saved.title = live.title;
         saved.url = live.url;
         saved.variantId = live.variantId;
         saved.lastChecked = Date.now();
         saved.lastError = null;
 
-        if (live.available && live.variantId && saved.status !== "AVAILABLE") {
+        if (live.available && live.variantId) {
           saved.status = "AVAILABLE";
-          await saveState();
-          await openAssistant(saved);
-          await openCheckout(saved);
-        } else if (!live.available) {
+
+          // Trigger only on the transition from unavailable -> available.
+          // This prevents duplicate windows every 30 seconds while still
+          // allowing the next release event to trigger normally.
+          if (!wasAvailable) {
+            saved.wasAvailable = true;
+            await saveState();
+            await triggerCheckout(saved);
+          } else {
+            await saveState();
+          }
+        } else {
           saved.status = "WATCHING";
+          saved.wasAvailable = false;
           await saveState();
         }
       } catch (error) {
@@ -167,6 +184,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const product = normalizeProduct(message.product);
       product.assistance = Boolean(message.enabled);
       product.status = product.assistance ? "WATCHING" : "DISABLED";
+      // Re-arming assistance means the next availability event can trigger.
+      product.wasAvailable = false;
       selected[product.handle] = product;
       await saveState();
       sendResponse({ ok: true, product });
