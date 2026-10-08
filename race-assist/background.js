@@ -99,9 +99,6 @@ async function checkSelected() {
         if (live.available && live.variantId) {
           saved.status = "AVAILABLE";
 
-          // Trigger only on the transition from unavailable -> available.
-          // This prevents duplicate windows every 30 seconds while still
-          // allowing the next release event to trigger normally.
           if (!wasAvailable) {
             saved.wasAvailable = true;
             await saveState();
@@ -184,7 +181,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const product = normalizeProduct(message.product);
       product.assistance = Boolean(message.enabled);
       product.status = product.assistance ? "WATCHING" : "DISABLED";
-      // Re-arming assistance means the next availability event can trigger.
       product.wasAvailable = false;
       selected[product.handle] = product;
       await saveState();
@@ -201,6 +197,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message?.action === "testAssistant") {
       await openAssistant(normalizeProduct(message.product));
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (message?.action === "discover") {
+      await discoverCandidates();
       sendResponse({ ok: true });
       return;
     }
