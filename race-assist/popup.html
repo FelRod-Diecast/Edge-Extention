@@ -10,15 +10,32 @@
 <h1>🏁 RLC Race Assist</h1>
 <p>Independent test extension. The working Mattel Tracker is untouched.</p>
 </header>
+
+<section class="manual">
+<h2>➕ Watch Any Mattel Product</h2>
+<label for="productUrl">Mattel product URL</label>
+<input id="productUrl" type="url" placeholder="https://creations.mattel.com/products/..." autocomplete="off">
+<div class="qtyRow">
+  <label for="quantity">Quantity</label>
+  <input id="quantity" type="number" min="1" max="20" value="20">
+  <span>Non-RLC max: 20 • RLC: 2</span>
+</div>
+<button id="addProduct">Add to watchlist</button>
+<div id="manualStatus" class="manualStatus"></div>
+</section>
+
 <div class="controls">
 <button id="refresh">Refresh</button>
 <button id="checkNow">Check selected now</button>
 </div>
+
 <h2>🎯 Assistance Watchlist</h2>
 <div id="selected">Loading...</div>
+
 <h2>🔎 Discovered RLC Candidates</h2>
 <div id="candidates">Loading...</div>
-<footer>CAPTCHA, Mattel queue/security steps, and the final purchase remain user-controlled.</footer>
+
+<footer>Restock watching uses Mattel product availability. CAPTCHA, queue/security steps, and the final purchase remain user-controlled.</footer>
 <script src="popup.js"></script>
 </body>
 </html>
