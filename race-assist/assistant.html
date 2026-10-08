@@ -1,5 +1,9 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>RLC Race Assist Ready</title></head>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RLC Race Assist Ready</title>
+</head>
 <body style="margin:0;padding:18px;background:#151515;color:#eee;font-family:Arial,sans-serif">
 <h1>🏁 Race Assist Ready</h1>
 <div style="border:1px solid #444;border-radius:8px;padding:12px;background:#202020">
@@ -8,13 +12,6 @@
 <p style="color:#aaa;font-size:12px;line-height:1.5">CAPTCHA and any Mattel queue/security step remain user-controlled. Final purchase remains user-controlled.</p>
 </div>
 <button id="focusCheckout" style="width:100%;margin-top:10px;padding:10px;border:0;border-radius:6px;background:#ff4500;color:white;font-weight:bold">Focus checkout window</button>
-<script>
-const params=new URLSearchParams(location.search);
-const handle=params.get("handle");
-document.getElementById("product").textContent=handle||"RLC product";
-document.getElementById("focusCheckout").addEventListener("click",async()=>{
-  const tabs=await chrome.tabs.query({url:"https://creations.mattel.com/cart/*"});
-  if(tabs[0]?.id){await chrome.tabs.update(tabs[0].id,{active:true});if(tabs[0].windowId)await chrome.windows.update(tabs[0].windowId,{focused:true})}
-});
-</script>
-</body></html>
+<script src="assistant.js"></script>
+</body>
+</html>
