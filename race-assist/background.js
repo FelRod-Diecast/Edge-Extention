@@ -1,6 +1,8 @@
 const MATTEL = "https://creations.mattel.com";
 const CHECK_INTERVAL_MINUTES = 0.5;
 const DISCOVERY_INTERVAL_MINUTES = 5;
+const NON_RLC_MAX_QTY = 20;
+const RLC_QTY = 2;
 
 let selected = {};
 let checking = false;
@@ -14,7 +16,19 @@ async function saveState() {
   await chrome.storage.local.set({ raceAssistProducts: selected });
 }
 
+function isRlcProduct(product) {
+  return /rlc|red-line-club|elite-64/i.test(
+    (product?.handle || "") + " " + (product?.title || "")
+  );
+}
+
+function quantityFor(product) {
+  return isRlcProduct(product) ? RLC_QTY : NON_RLC_MAX_QTY;
+}
+
 function normalizeProduct(p) {
+  const rlc = isRlcProduct(p);
+  const requested = Number(p.quantity);
   return {
     handle: p.handle,
     title: p.title || p.handle,
@@ -23,6 +37,7 @@ function normalizeProduct(p) {
     launchTimestamp: p.launchTimestamp || null,
     variantId: p.variantId ? String(p.variantId) : null,
     assistance: p.assistance !== false,
+    quantity: rlc ? RLC_QTY : Math.min(NON_RLC_MAX_QTY, Math.max(1, Number.isFinite(requested) ? requested : NON_RLC_MAX_QTY)),
     status: p.status || "WATCHING",
     wasAvailable: Boolean(p.wasAvailable),
     lastChecked: p.lastChecked || 0,
@@ -37,18 +52,22 @@ async function getProduct(handle) {
   });
   if (!response.ok) throw new Error("HTTP " + response.status);
   const data = await response.json();
-  const variant = (data.variants || []).find(v => v.available) || data.variants?.[0];
+  const variants = data.variants || [];
+  const variant = variants.find(v => v.available) || variants[0];
+  const rlc = /rlc|red-line-club|elite-64/i.test(handle + " " + (data.title || ""));
   return {
     title: data.title || handle,
     handle,
     url: MATTEL + "/products/" + handle,
     variantId: variant?.id ? String(variant.id) : null,
-    available: Boolean(variant?.available)
+    available: Boolean(variant?.available),
+    quantity: rlc ? RLC_QTY : NON_RLC_MAX_QTY
   };
 }
 
-function cartUrl(variantId) {
-  return MATTEL + "/cart/" + variantId + ":2";
+function cartUrl(variantId, quantity) {
+  const safeQty = Math.min(NON_RLC_MAX_QTY, Math.max(1, Number(quantity) || 1));
+  return MATTEL + "/cart/" + variantId + ":" + safeQty;
 }
 
 async function openAssistant(product) {
@@ -67,7 +86,7 @@ async function openAssistant(product) {
 async function openCheckout(product) {
   if (!product.variantId) return;
   await chrome.windows.create({
-    url: cartUrl(product.variantId),
+    url: cartUrl(product.variantId, product.quantity),
     type: "popup",
     width: 500,
     height: 750,
@@ -93,6 +112,7 @@ async function checkSelected() {
         saved.title = live.title;
         saved.url = live.url;
         saved.variantId = live.variantId;
+        saved.quantity = quantityFor({ ...saved, ...live });
         saved.lastChecked = Date.now();
         saved.lastError = null;
 
@@ -120,6 +140,31 @@ async function checkSelected() {
   } finally {
     checking = false;
   }
+}
+
+function extractHandle(value) {
+  try {
+    const url = new URL(value);
+    if (url.origin !== MATTEL) throw new Error("Use a Mattel Creations product URL.");
+    const match = url.pathname.match(/^\/products\/([a-z0-9][a-z0-9-]*)\/?$/i);
+    if (!match) throw new Error("That URL is not a Mattel product page.");
+    return match[1].toLowerCase();
+  } catch (error) {
+    throw new Error(error?.message || "Invalid product URL.");
+  }
+}
+
+async function addManualProduct(url, quantity) {
+  const handle = extractHandle(url);
+  const live = await getProduct(handle);
+  const product = normalizeProduct({
+    ...live,
+    assistance: true,
+    quantity: isRlcProduct(live) ? RLC_QTY : Math.min(NON_RLC_MAX_QTY, Math.max(1, Number(quantity) || NON_RLC_MAX_QTY))
+  });
+  selected[handle] = product;
+  await saveState();
+  return product;
 }
 
 async function discoverCandidates() {
@@ -174,6 +219,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         products: data.raceAssistCandidates || [],
         updated: data.candidatesUpdated || 0
       });
+      return;
+    }
+
+    if (message?.action === "addManualProduct") {
+      const product = await addManualProduct(message.url, message.quantity);
+      sendResponse({ ok: true, product });
       return;
     }
 
