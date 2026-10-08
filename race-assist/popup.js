@@ -23,7 +23,7 @@ async function render(){
   const box=$("candidates");box.innerHTML="";
   const list=(candidates?.products||[]).filter(p=>!map[p.handle]);
   if(!list.length)box.textContent="No RLC candidates discovered yet. Try Refresh.";
-  else list.slice(0,60).forEach(p=>box.appendChild(card(p,null));
+  else list.slice(0,60).forEach(p=>box.appendChild(card(p,null)));
 }
 async function refreshAll(){
   $("refresh").textContent="Refreshing...";
