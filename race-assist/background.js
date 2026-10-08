@@ -91,12 +91,6 @@ async function checkSelected() {
         if (live.available && live.variantId && saved.status !== "AVAILABLE") {
           saved.status = "AVAILABLE";
           await saveState();
-          await chrome.notifications.create("race_" + saved.handle, {
-            type: "basic",
-            title: "RLC Race Assist — AVAILABLE",
-            message: saved.title + " is available. Quantity 2 checkout opened.",
-            priority: 2
-          });
           await openAssistant(saved);
           await openCheckout(saved);
         } else if (!live.available) {
