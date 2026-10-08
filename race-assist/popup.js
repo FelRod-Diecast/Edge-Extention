@@ -3,8 +3,8 @@ async function send(action,extra={}){return chrome.runtime.sendMessage({action,.
 function card(product,selected){
   const div=document.createElement("div");div.className="card";
   const label=document.createElement("label");label.className="watch";
-  const cb=document.createElement("input");cb.type="checkbox";cb.checked=Boolean(selected);
-  cb.addEventListener("change",async()=>{await send("setAssistance",{enabled:cb.checked,product});await render()});
+  const cb=document.createElement("input");cb.type="checkbox";cb.checked=Boolean(selected?.assistance);
+  cb.addEventListener("change",async()=>{if(cb.checked){await send("setAssistance",{enabled:true,product});}else{await send("removeProduct",{handle:product.handle});}await render()});
   label.append(cb,document.createTextNode(" Need checkout assistance"));
   const title=document.createElement("div");title.className="title";title.textContent=product.title||product.handle;
   const meta=document.createElement("div");meta.className="meta";meta.textContent="Handle: "+product.handle+" • Variant: "+(product.variantId||"resolve when live");
