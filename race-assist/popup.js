@@ -23,8 +23,15 @@ async function render(){
   const box=$("candidates");box.innerHTML="";
   const list=(candidates?.products||[]).filter(p=>!map[p.handle]);
   if(!list.length)box.textContent="No RLC candidates discovered yet. Try Refresh.";
-  else list.slice(0,60).forEach(p=>box.appendChild(card(p,null)));
+  else list.slice(0,60).forEach(p=>box.appendChild(card(p,null));
 }
-$("refresh").addEventListener("click",async()=>{await send("checkNow");await render()});
+async function refreshAll(){
+  $("refresh").textContent="Refreshing...";
+  await send("discover");
+  await send("checkNow");
+  $("refresh").textContent="Refresh";
+  await render();
+}
+$("refresh").addEventListener("click",refreshAll);
 $("checkNow").addEventListener("click",async()=>{$("checkNow").textContent="Checking...";await send("checkNow");$("checkNow").textContent="Check selected now";await render()});
 render();
