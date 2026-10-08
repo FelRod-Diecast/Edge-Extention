@@ -1,5 +1,5 @@
 const MATTEL = "https://creations.mattel.com";
-const CHECK_INTERVAL_MINUTES = 1 / 6;
+const CHECK_INTERVAL_MINUTES = 0.5;
 const DISCOVERY_INTERVAL_MINUTES = 5;
 
 let selected = {};
@@ -93,7 +93,6 @@ async function checkSelected() {
           await saveState();
           await chrome.notifications.create("race_" + saved.handle, {
             type: "basic",
-            iconUrl: "icon.png",
             title: "RLC Race Assist — AVAILABLE",
             message: saved.title + " is available. Quantity 2 checkout opened.",
             priority: 2
