@@ -1,0 +1,4 @@
+(()=>{const text=()=>document.body?.innerText?.toLowerCase()||"";
+function classify(){const b=text();if(/captcha|i am not a robot|verify you are human/.test(b))return"CAPTCHA — USER ACTION REQUIRED";if(/queue|waiting room|please wait/.test(b))return"QUEUE / WAITING — USER CONTROLLED";if(/thank you|order confirmed|order #/.test(b))return"ORDER CONFIRMATION — STOP";if(/payment|shipping|delivery|review your order|place order/.test(b))return"CHECKOUT STEP";if(/cart/.test(location.pathname))return"CART";return"MATTEL PAGE"}
+function announce(){document.documentElement.dataset.rlcRaceAssistState=classify()}
+announce();if(document.body)new MutationObserver(announce).observe(document.body,{childList:true,subtree:true})})()
