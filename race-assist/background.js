@@ -23,12 +23,12 @@ function isRlcProduct(product) {
 }
 
 function quantityFor(product) {
-  return isRlcProduct(product) ? RLC_QTY : NON_RLC_MAX_QTY;
+  if (isRlcProduct(product)) return RLC_QTY;
+  const requested = Number(product?.quantity);
+  return Math.min(NON_RLC_MAX_QTY, Math.max(1, Number.isFinite(requested) && requested > 0 ? requested : NON_RLC_MAX_QTY));
 }
 
 function normalizeProduct(p) {
-  const rlc = isRlcProduct(p);
-  const requested = Number(p.quantity);
   return {
     handle: p.handle,
     title: p.title || p.handle,
@@ -37,7 +37,7 @@ function normalizeProduct(p) {
     launchTimestamp: p.launchTimestamp || null,
     variantId: p.variantId ? String(p.variantId) : null,
     assistance: p.assistance !== false,
-    quantity: rlc ? RLC_QTY : Math.min(NON_RLC_MAX_QTY, Math.max(1, Number.isFinite(requested) ? requested : NON_RLC_MAX_QTY)),
+    quantity: quantityFor(p),
     status: p.status || "WATCHING",
     wasAvailable: Boolean(p.wasAvailable),
     lastChecked: p.lastChecked || 0,
@@ -54,20 +54,17 @@ async function getProduct(handle) {
   const data = await response.json();
   const variants = data.variants || [];
   const variant = variants.find(v => v.available) || variants[0];
-  const rlc = /rlc|red-line-club|elite-64/i.test(handle + " " + (data.title || ""));
   return {
     title: data.title || handle,
     handle,
     url: MATTEL + "/products/" + handle,
     variantId: variant?.id ? String(variant.id) : null,
-    available: Boolean(variant?.available),
-    quantity: rlc ? RLC_QTY : NON_RLC_MAX_QTY
+    available: Boolean(variant?.available)
   };
 }
 
 function cartUrl(variantId, quantity) {
-  const safeQty = Math.min(NON_RLC_MAX_QTY, Math.max(1, Number(quantity) || 1));
-  return MATTEL + "/cart/" + variantId + ":" + safeQty;
+  return MATTEL + "/cart/" + variantId + ":" + quantityFor({ quantity });
 }
 
 async function openAssistant(product) {
@@ -112,13 +109,12 @@ async function checkSelected() {
         saved.title = live.title;
         saved.url = live.url;
         saved.variantId = live.variantId;
-        saved.quantity = quantityFor({ ...saved, ...live });
+        saved.quantity = quantityFor(saved);
         saved.lastChecked = Date.now();
         saved.lastError = null;
 
         if (live.available && live.variantId) {
           saved.status = "AVAILABLE";
-
           if (!wasAvailable) {
             saved.wasAvailable = true;
             await saveState();
@@ -160,7 +156,9 @@ async function addManualProduct(url, quantity) {
   const product = normalizeProduct({
     ...live,
     assistance: true,
-    quantity: isRlcProduct(live) ? RLC_QTY : Math.min(NON_RLC_MAX_QTY, Math.max(1, Number(quantity) || NON_RLC_MAX_QTY))
+    quantity: Math.min(NON_RLC_MAX_QTY, Math.max(1, Number(quantity) || NON_RLC_MAX_QTY)),
+    status: live.available ? "AVAILABLE" : "WATCHING",
+    wasAvailable: Boolean(live.available)
   });
   selected[handle] = product;
   await saveState();
@@ -207,27 +205,20 @@ async function discoverCandidates() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     await loadState();
-
     if (message?.action === "getState") {
       sendResponse({ products: Object.values(selected) });
       return;
     }
-
     if (message?.action === "getCandidates") {
       const data = await chrome.storage.local.get(["raceAssistCandidates", "candidatesUpdated"]);
-      sendResponse({
-        products: data.raceAssistCandidates || [],
-        updated: data.candidatesUpdated || 0
-      });
+      sendResponse({ products: data.raceAssistCandidates || [], updated: data.candidatesUpdated || 0 });
       return;
     }
-
     if (message?.action === "addManualProduct") {
       const product = await addManualProduct(message.url, message.quantity);
       sendResponse({ ok: true, product });
       return;
     }
-
     if (message?.action === "setAssistance") {
       const product = normalizeProduct(message.product);
       product.assistance = Boolean(message.enabled);
@@ -238,37 +229,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true, product });
       return;
     }
-
     if (message?.action === "removeProduct") {
       delete selected[message.handle];
       await saveState();
       sendResponse({ ok: true });
       return;
     }
-
     if (message?.action === "testAssistant") {
       await openAssistant(normalizeProduct(message.product));
       sendResponse({ ok: true });
       return;
     }
-
     if (message?.action === "discover") {
       await discoverCandidates();
       sendResponse({ ok: true });
       return;
     }
-
     if (message?.action === "checkNow") {
       await checkSelected();
       sendResponse({ ok: true });
       return;
     }
-
     sendResponse({ ok: false, error: "Unknown action" });
-  })().catch(error => sendResponse({
-    ok: false,
-    error: String(error?.message || error)
-  }));
+  })().catch(error => sendResponse({ ok: false, error: String(error?.message || error) }));
   return true;
 });
 
@@ -277,9 +260,7 @@ chrome.alarms.onAlarm.addListener(async alarm => {
     await loadState();
     await checkSelected();
   }
-  if (alarm.name === "race-assist-discovery") {
-    await discoverCandidates();
-  }
+  if (alarm.name === "race-assist-discovery") await discoverCandidates();
 });
 
 (async () => {
