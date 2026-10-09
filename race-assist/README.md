@@ -11,7 +11,10 @@ Independent Manifest V3 test extension. It does not modify or depend on the work
 - If a product is already available when added, it records that initial state rather than treating it as a new restock event.
 - Does not solve CAPTCHA, bypass queues/security, evade rate limits, or automate the final purchase.
 
-## Automated checks\nA GitHub Actions workflow checks JavaScript syntax, manifest references, external script loading, and regression cases for quantity limits, URL validation, restock transition triggering, and duplicate-window prevention. These checks do not replace real Edge/Mattel browser testing.\n\n## Important test status
+## Automated checks
+A GitHub Actions workflow checks JavaScript syntax, manifest references, external script loading, and regression cases for quantity limits, URL validation, restock transition triggering, and duplicate-window prevention. These checks do not replace real Edge/Mattel browser testing.
+
+## Important test status
 This is still a test build. Real browser testing is required to verify Mattel's product JSON availability signals, actual quantity limits, browser alarm timing, and the cart handoff. Do not rely on it for a time-critical release until that testing is complete.
 
 ## Browser plan
