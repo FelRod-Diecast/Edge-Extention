@@ -25,7 +25,9 @@ jobs:
           node --check race-assist/popup.js
           node --check race-assist/assistant.js
           node --check race-assist/content.js
-      - name: Run Race Assist regression tests\n        run: node --test race-assist/tests/*.test.cjs\n      - name: Validate manifest JSON and referenced files
+      - name: Run Race Assist regression tests
+        run: node --test race-assist/tests/*.test.cjs
+      - name: Validate manifest JSON and referenced files
         run: |
           node -e "const fs=require('fs'); const m=JSON.parse(fs.readFileSync('race-assist/manifest.json','utf8')); for (const p of [m.background.service_worker,m.action.default_popup,...m.content_scripts.flatMap(s=>s.js)]) { if (!fs.existsSync('race-assist/'+p)) throw new Error('Missing manifest file: '+p); } if (m.manifest_version!==3) throw new Error('Expected Manifest V3'); console.log('Manifest JSON valid; referenced files exist.');"
       - name: Verify assistant scripts are external
