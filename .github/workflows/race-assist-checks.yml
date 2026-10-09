@@ -1,0 +1,33 @@
+name: Race Assist test-branch checks
+
+on:
+  push:
+    branches:
+      - rlc-race-assist-test
+    paths:
+      - "race-assist/**"
+      - ".github/workflows/race-assist-checks.yml"
+  workflow_dispatch:
+
+jobs:
+  syntax-and-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate JavaScript syntax
+        run: |
+          node --check race-assist/background.js
+          node --check race-assist/popup.js
+          node --check race-assist/assistant.js
+          node --check race-assist/content.js
+      - name: Validate manifest JSON and referenced files
+        run: |
+          node -e "const fs=require('fs'); const m=JSON.parse(fs.readFileSync('race-assist/manifest.json','utf8')); for (const p of [m.background.service_worker,m.action.default_popup,...m.content_scripts.flatMap(s=>s.js)]) { if (!fs.existsSync('race-assist/'+p)) throw new Error('Missing manifest file: '+p); } if (m.manifest_version!==3) throw new Error('Expected Manifest V3'); console.log('Manifest JSON valid; referenced files exist.');"
+      - name: Verify assistant scripts are external
+        run: |
+          node -e "const fs=require('fs'); for(const p of ['race-assist/assistant.html','race-assist/popup.html']) { const s=fs.readFileSync(p,'utf8'); if (/<script(?![^>]*\\bsrc=)[^>]*>/i.test(s)) throw new Error('Inline script found in '+p); } console.log('HTML uses external scripts.');"
