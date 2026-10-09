@@ -104,6 +104,11 @@ test("RLC quantity is clamped to two", async () => {
   });
   assert.equal(added.ok, true);
   assert.equal(added.product.quantity, 2);
+
+  h.availability.set("hot-wheels-rlc-exclusive-test", true);
+  await h.send({ action: "checkNow" });
+  assert.equal(h.windows.length, 2);
+  assert.ok(h.windows.some(w => /\\/cart\\/222:2$/.test(w.url)), "RLC cart must stay at quantity two");
 });
 
 test("manual URL rejects non-Mattel origins", async () => {
