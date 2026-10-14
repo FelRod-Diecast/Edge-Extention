@@ -179,7 +179,7 @@ async function discoverCandidates() {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
       const html = await response.text();
-      const re = /\\/products\\/([a-z0-9][a-z0-9-]{1,150})/gi;
+      const re = /\/products\/([a-z0-9][a-z0-9-]{1,150})/gi;
       let match;
       while ((match = re.exec(html)) && handles.size < 100) {
         handles.add(match[1].toLowerCase());
