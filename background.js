@@ -1,4 +1,4 @@
-importScripts("config.js");
+importScripts("config.js", "variant-stock.js");
 
 let itemsState = {};
 let lastAlertTime = {};
@@ -2270,16 +2270,10 @@ async function scanMattel() {
        * by the product-level boolean.
        */
       if (previousAvailable && effectiveAvailable && previousVariantStates.length) {
-        const previousById = new Map(
-          previousVariantStates.map(variant => [String(variant.id), variant])
+        const newlyAvailableVariants = findNewlyAvailableVariants(
+          previousVariantStates,
+          effectiveVariantStates
         );
-
-        const newlyAvailableVariants = effectiveVariantStates.filter(variant => {
-          const previousVariant = previousById.get(String(variant.id));
-          return previousVariant &&
-            previousVariant.available === false &&
-            variant.available === true;
-        });
 
         for (const variant of newlyAvailableVariants) {
           const variantAlertKey = `${p.handle}_${variant.id}`;
