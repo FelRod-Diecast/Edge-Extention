@@ -215,6 +215,16 @@
     return results;
   }
 
+  function candidatePriority(product) {
+    const haystack = lower(`${product?.handle || ""} ${product?.title || ""} ${(product?.tags || []).join(" ")}`);
+    let score = 0;
+    if (haystack.includes("rlc") || haystack.includes("red line club")) score += 100;
+    if (haystack.includes("elite 64") || haystack.includes("elite-64")) score += 90;
+    if (haystack.includes("hot wheels") || haystack.includes("hot-wheels")) score += 50;
+    if (/\\b(?:skyline|mustang|porsche|ferrari|nissan|chevrolet|chevy|dodge|ford|toyota|datsun|pontiac|mazda|silverado|blazer)\\b/i.test(haystack)) score += 20;
+    return score;
+  }
+
   function upcomingCategory(launchTime, now) {
     const days = Math.ceil((launchTime - now) / 86400000);
     if (launchTime <= now) return "LIVE WINDOW";
@@ -249,21 +259,37 @@
       if (stored?.handle && !isBlocked(stored.handle)) candidates.set(stored.handle, { ...candidates.get(stored.handle), ...stored });
     }
 
-    const handles = [...candidates.keys()].slice(0, MAX_PAGE_CHECKS);
+    const handles = [...candidates.keys()]
+      .sort((a, b) => {
+        const storedDifference = Number(storedByHandle.has(b)) - Number(storedByHandle.has(a));
+        if (storedDifference) return storedDifference;
+        return candidatePriority(candidates.get(b)) - candidatePriority(candidates.get(a));
+      })
+      .slice(0, MAX_PAGE_CHECKS);
     const inspected = await mapLimit(handles, CHECK_CONCURRENCY, async handle => {
       const product = candidates.get(handle) || { handle };
+      const stored = storedByHandle.get(handle);
       const html = await fetchText(`${MATTEL}/products/${handle}`);
-      if (!html || /Page not found/i.test(html)) return null;
 
-      const launch = extractLaunchDate(html);
-      if (!launch) return null;
+      // A failed request is not evidence that an upcoming product disappeared.
+      // Preserve the last verified record through temporary network/Mattel failures.
+      if (!html) return stored || null;
+      if (/Page not found/i.test(html)) return null;
+
+      const launch = extractLaunchDate(html) || (
+        stored && Number.isFinite(Number(stored.launchTimestamp))
+          ? { text: stored.launchDate || null, timestamp: Number(stored.launchTimestamp) }
+          : null
+      );
+      // If Mattel temporarily omits launch copy, keep the saved record unless
+      // inventory positively confirms that the product is now available.
+      if (!launch) return stored || null;
 
       const live = await checkLiveInventory(handle);
       if (live?.ok === true && live.available === true) return null;
 
-      const titleMatch = html.match(/property=["']og:title["']\s+content=["']([^"']+)/i) || html.match(/<title>([^<]+)/i);
-      const title = text(titleMatch?.[1] || product.title || handle).replace(/\s*\|\s*Mattel.*$/i, "");
-      const stored = storedByHandle.get(handle);
+      const titleMatch = html.match(/property=["']og:title["']\\s+content=["']([^"']+)/i) || html.match(/<title>([^<]+)/i);
+      const title = text(titleMatch?.[1] || product.title || stored?.title || handle).replace(/\\s*\\|\\s*Mattel.*$/i, "");
 
       const existingAlert = hiddenSeen[`UPCOMING_LAUNCH_upcoming_${handle}`] || hiddenSeen[`upcoming_${handle}`];
       const alertTime = Number(existingAlert?.timestamp);
@@ -348,7 +374,7 @@
     const untracked = [...candidates.values()].filter(product => {
       const handle = product.handle;
       return handle && !Object.values(itemsState).some(item => item?.handle === handle);
-    }).slice(0, MAX_PAGE_CHECKS);
+    }).sort((a, b) => candidatePriority(b) - candidatePriority(a)).slice(0, MAX_PAGE_CHECKS);
 
     const inspected = await mapLimit(untracked, CHECK_CONCURRENCY, async product => {
       const html = await fetchText(`${MATTEL}/products/${product.handle}`);
