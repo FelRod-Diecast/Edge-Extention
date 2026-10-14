@@ -177,9 +177,9 @@ test("discovery validates live product data, uses real titles, and filters non-R
 
   const candidates = h.storage.raceAssistCandidates;
   assert.equal(candidates.length, 2);
-  assert.deepEqual(
-    candidates.map(p => p.handle).sort(),
-    ["hot-wheels-elite-64-live-test", "hot-wheels-rlc-exclusive-live-test"]
+  assert.equal(
+    JSON.stringify(candidates.map(p => p.handle).sort()),
+    JSON.stringify(["hot-wheels-elite-64-live-test", "hot-wheels-rlc-exclusive-live-test"])
   );
   assert.ok(candidates.every(p => p.title === "Hot Wheels RLC Test Product"));
   assert.ok(candidates.every(p => p.url.startsWith("https://creations.mattel.com/products/")));
