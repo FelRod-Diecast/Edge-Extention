@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "smart-discovery.js"), "utf8");
 
-function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", productSitemapXml = "", productResponse } = {}) {
+function makeHarness({ storedUpcoming = [], sourceHtml = "", launchCalendarHtml, sitemapXml = "", productSitemapXml = "", productResponse } = {}) {
   const saved = { upcoming: null, hidden: null };
   const requestedProducts = [];
   const browserAlerts = [];
@@ -36,6 +36,9 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", pr
       }
       if (url.includes("/sitemap_products_")) {
         return { ok: true, text: async () => productSitemapXml };
+      }
+      if (url.endsWith("/pages/launch-calendar")) {
+        return { ok: true, text: async () => launchCalendarHtml ?? sourceHtml };
       }
       if (url.includes("/pages/") || url.includes("/collections/")) {
         return { ok: true, text: async () => sourceHtml };
@@ -145,4 +148,24 @@ test("keeps a strong hidden discovery when its page already says sold out", asyn
   assert.ok(found.hiddenSignals.includes("Sold-out status observed"));
   assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"), "hidden discoveries must trigger a browser alert");
   assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"), "hidden discoveries must trigger a Discord webhook");
+});
+
+test("recognizes the Datsun JPM47 calendar launch even when the product page omits its launch date", async () => {
+  const handle = "hot-wheels-rlc-exclusive-datsun-240z-jpm47";
+  const calendarHtml = '<article><span>Thu Oct 15</span><span>9am PT</span><span>Coming Soon</span><a href="/products/' + handle + '">View product</a></article>';
+  const harness = makeHarness({
+    launchCalendarHtml: calendarHtml,
+    productResponse: async () => ({
+      ok: true,
+      text: async () => '<meta property="og:title" content="Hot Wheels RLC Exclusive Datsun 240Z"><div>Sold out</div>'
+    })
+  });
+  await installed(harness);
+  await harness.self.scanUpcomingProducts();
+  assert.ok(
+    harness.saved.upcoming.some(product => product.handle === handle),
+    "a product linked from tomorrow's launch-calendar entry should not be dropped because its detail page omits launch copy"
+  );
+  assert.ok(harness.browserAlerts.some(([title]) => title === "🚀 UPCOMING LAUNCH"));
+  assert.ok(harness.webhookAlerts.some(embed => embed.title === "🚀 UPCOMING LAUNCH"));
 });
