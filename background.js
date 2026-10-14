@@ -541,7 +541,16 @@ async function checkLiveInventory(handle) {
         ? totalStock
         : null,
       variantId:
-        firstAvailableVariantId
+        firstAvailableVariantId,
+      variantStates: data.variants
+        .filter(variant => variant && variant.id !== undefined && variant.id !== null)
+        .map(variant => ({
+          id: String(variant.id),
+          available: variant.available === true,
+          quantity: Number.isFinite(Number(variant.inventory_quantity))
+            ? Number(variant.inventory_quantity)
+            : null
+        }))
     };
   } catch (err) {
     console.error(
@@ -1882,6 +1891,16 @@ async function fetchMattelProducts() {
             )
           : null;
 
+      const variantStates = variants
+        .filter(v => v && v.id !== undefined && v.id !== null)
+        .map(v => ({
+          id: String(v.id),
+          available: v.available === true,
+          quantity: Number.isFinite(Number(v.inventory_quantity))
+            ? Number(v.inventory_quantity)
+            : null
+        }));
+
       const priceNumber =
         parseFloat(
           availableVariant.price ||
@@ -1901,6 +1920,8 @@ async function fetchMattelProducts() {
           p.id,
 
         variantId,
+
+        variantStates,
 
         handle:
           p.handle,
@@ -2095,6 +2116,12 @@ async function scanMattel() {
         ? Number(p.quantity)
         : 0;
       let effectiveVariantId = p.variantId;
+      let effectiveVariantStates = Array.isArray(p.variantStates)
+        ? p.variantStates
+        : [];
+      const previousVariantStates = Array.isArray(prev?.variantStates)
+        ? prev.variantStates
+        : [];
 
       /*
        * Only perform the expensive live inventory request when the
@@ -2122,6 +2149,10 @@ async function scanMattel() {
 
           if (liveInventory.variantId) {
             effectiveVariantId = liveInventory.variantId;
+          }
+
+          if (Array.isArray(liveInventory.variantStates)) {
+            effectiveVariantStates = liveInventory.variantStates;
           }
 
           console.log(
@@ -2230,6 +2261,62 @@ async function scanMattel() {
       );
 
       const previousAvailable = prev.available === true;
+
+      /*
+       * Variant-level restock detection:
+       * Product-level availability can remain true when one variant is sold
+       * out and a different variant is available. Track each variant ID so
+       * that a specific variant returning to available status is not hidden
+       * by the product-level boolean.
+       */
+      if (previousAvailable && effectiveAvailable && previousVariantStates.length) {
+        const previousById = new Map(
+          previousVariantStates.map(variant => [String(variant.id), variant])
+        );
+
+        const newlyAvailableVariants = effectiveVariantStates.filter(variant => {
+          const previousVariant = previousById.get(String(variant.id));
+          return previousVariant &&
+            previousVariant.available === false &&
+            variant.available === true;
+        });
+
+        for (const variant of newlyAvailableVariants) {
+          const variantAlertKey = `${p.handle}_${variant.id}`;
+
+          if (!canAlertItem(variantAlertKey, "VARIANT_RESTOCK")) {
+            continue;
+          }
+
+          const cartUrl = `https://creations.mattel.com/cart/${variant.id}:1`;
+          notifyBrowser(
+            "🔥 VARIANT RESTOCK DETECTED",
+            `${p.title} • Variant: ${variant.id}`,
+            cartUrl,
+            true
+          );
+
+          sendWebhookEmbed({
+            title: "🔥 VARIANT RESTOCK DETECTED",
+            description: `**[${p.title}](${p.url})**`,
+            url: p.url,
+            color: 16711680,
+            thumbnail: p.image ? { url: p.image } : undefined,
+            fields: [
+              { name: "Variant ID", value: String(variant.id), inline: true },
+              { name: "Status", value: "🟢 VARIANT AVAILABLE", inline: true },
+              { name: "Quantity", value: variant.quantity === null ? "Not exposed by storefront" : String(variant.quantity), inline: true },
+              { name: "Quick Cart", value: `[Add 1 to cart](${cartUrl})` }
+            ],
+            timestamp: new Date().toISOString()
+          });
+
+          realAlerts++;
+          console.log(
+            `[VARIANT RESTOCK] ${p.handle} variant ${variant.id} changed SOLD OUT -> AVAILABLE`
+          );
+        }
+      }
 
       /*
        * STOCK TRANSITION
@@ -2417,6 +2504,7 @@ async function scanMattel() {
        */
       prev.available = effectiveAvailable;
       prev.quantity = effectiveQuantity;
+      prev.variantStates = effectiveVariantStates;
 
       if (effectiveVariantId) {
         prev.variantId = effectiveVariantId;
