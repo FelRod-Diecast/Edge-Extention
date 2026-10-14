@@ -247,9 +247,11 @@ async function notifyBrowser(
   url,
   isHighPriority = false
 ) {
-  if (!browserAlertAllowed()) {
+  // Routine notifications must not consume the alert budget reserved
+  // for Upcoming, Hidden, and restock events.
+  if (!isHighPriority && !browserAlertAllowed()) {
     console.warn(
-      "[ALERT LIMIT] Browser notification suppressed:",
+      "[ALERT LIMIT] Low-priority browser notification suppressed:",
       title,
       message
     );
