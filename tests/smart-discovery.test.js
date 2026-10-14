@@ -168,4 +168,12 @@ test("recognizes the Datsun JPM47 calendar launch even when the product page omi
   );
   assert.ok(harness.browserAlerts.some(([title]) => title === "🚀 UPCOMING LAUNCH"));
   assert.ok(harness.webhookAlerts.some(embed => embed.title === "🚀 UPCOMING LAUNCH"));
+
+  await harness.self.scanHiddenProducts();
+  assert.ok(
+    harness.saved.hidden.some(product => product.handle === handle),
+    "the same calendar-backed product should qualify for Hidden when its detail page omits launch copy and says sold out"
+  );
+  assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"));
+  assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"));
 });
