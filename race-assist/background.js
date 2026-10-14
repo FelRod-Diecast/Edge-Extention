@@ -52,7 +52,11 @@ async function getProduct(handle) {
   });
   if (!response.ok) throw new Error("HTTP " + response.status);
   const data = await response.json();
-  const variants = data.variants || [];
+  if (!data || typeof data.title !== "string" || !data.title.trim() ||
+      !Array.isArray(data.variants) || data.variants.length === 0) {
+    throw new Error("Mattel returned incomplete product data");
+  }
+  const variants = data.variants;
   const variant = variants.find(v => v.available) || variants[0];
   return {
     title: data.title || handle,
