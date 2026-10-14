@@ -150,30 +150,24 @@ test("keeps a strong hidden discovery when its page already says sold out", asyn
   assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"), "hidden discoveries must trigger a Discord webhook");
 });
 
-test("recognizes the Datsun JPM47 calendar launch even when the product page omits its launch date", async () => {
+test("discovers the Datsun JPM47 as hidden from its localized RLC preorder page when the calendar card has no product link", async () => {
   const handle = "hot-wheels-rlc-exclusive-datsun-240z-jpm47";
-  const calendarHtml = '<article><span>Thu Oct 15</span><span>9am PT</span><span>Coming Soon</span><a href="/products/' + handle + '">View product</a></article>';
+  const sourceHtml = '<a href="/products/' + handle + '">' + handle + '</a>';
+  const genericCalendarHtml = '<article><span>Thu</span><span>Oct</span><span>15</span><span>9am PT</span><img alt="Card Image"><span>Creations Exclusive Design Coming Soon</span></article>';
   const harness = makeHarness({
-    launchCalendarHtml: calendarHtml,
+    sourceHtml,
+    launchCalendarHtml: genericCalendarHtml,
     productResponse: async () => ({
       ok: true,
-      text: async () => '<meta property="og:title" content="Hot Wheels RLC Exclusive Datsun 240Z"><div>Sold out</div>'
+      text: async () => '<meta property="og:title" content="Hot Wheels RLC Exclusive Datsun 240Z"><div>Vorbestellen</div><button>Ausverkauft</button>'
     })
   });
   await installed(harness);
-  await harness.self.scanUpcomingProducts();
-  assert.ok(
-    harness.saved.upcoming.some(product => product.handle === handle),
-    "a product linked from tomorrow's launch-calendar entry should not be dropped because its detail page omits launch copy"
-  );
-  assert.ok(harness.browserAlerts.some(([title]) => title === "🚀 UPCOMING LAUNCH"));
-  assert.ok(harness.webhookAlerts.some(embed => embed.title === "🚀 UPCOMING LAUNCH"));
-
   await harness.self.scanHiddenProducts();
   assert.ok(
     harness.saved.hidden.some(product => product.handle === handle),
-    "the same calendar-backed product should qualify for Hidden when its detail page omits launch copy and says sold out"
+    "a localized RLC preorder marked sold out should still qualify as a hidden discovery"
   );
-  assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"));
-  assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"));
+  assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"), "the Datsun should trigger a browser alert");
+  assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"), "the Datsun should trigger a Discord webhook");
 });
