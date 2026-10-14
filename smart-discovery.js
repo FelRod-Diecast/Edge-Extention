@@ -135,6 +135,53 @@
     return null;
   }
 
+  function extractCalendarLaunches(html, now = Date.now()) {
+    const launches = new Map();
+    const source = String(html || "");
+    const linkRe = /href=["'][^"']*\/products\/([a-z0-9][a-z0-9-]{1,150})(?:[?#"'\\/]|$)/gi;
+    let link;
+
+    while ((link = linkRe.exec(source))) {
+      const handle = link[1].toLowerCase();
+      const index = link.index;
+      // Launch calendar cards place the date and time near the product link.
+      // Limit the search window so a neighboring card is less likely to leak
+      // its launch date into this product.
+      const context = source.slice(Math.max(0, index - 500), Math.min(source.length, index + 500));
+      const dateMatch = context.match(/\\b(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?\\s*,?\\s*)?(January|Jan|February|Feb|March|Mar|April|Apr|May|June|Jun|July|Jul|August|Aug|September|Sep|October|Oct|November|Nov|December|Dec)\\s+(\\d{1,2})(?:,?\\s+(\\d{4}))?[\\s\\S]{0,120}?\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)\\s*PT\\b/i);
+      if (!dateMatch) continue;
+
+      const monthNames = {
+        jan: "January", january: "January", feb: "February", february: "February",
+        mar: "March", march: "March", apr: "April", april: "April", may: "May",
+        jun: "June", june: "June", jul: "July", july: "July", aug: "August",
+        august: "August", sep: "September", september: "September", oct: "October",
+        october: "October", nov: "November", november: "November", dec: "December",
+        december: "December"
+      };
+      const month = monthNames[dateMatch[1].toLowerCase()];
+      const day = Number(dateMatch[2]);
+      let year = Number(dateMatch[3] || new Date(now).getFullYear());
+      const hour = Number(dateMatch[4]);
+      const minute = Number(dateMatch[5] || 0);
+      const ampm = dateMatch[6].toUpperCase();
+
+      let launch = parseMattelLaunchDate(`${month} ${day}, ${year} ${hour}:${String(minute).padStart(2, "0")} ${ampm} PT`);
+      if (!dateMatch[3] && launch && launch.timestamp <= now) {
+        year += 1;
+        launch = parseMattelLaunchDate(`${month} ${day}, ${year} ${hour}:${String(minute).padStart(2, "0")} ${ampm} PT`);
+      }
+      if (launch) launches.set(handle, launch);
+    }
+
+    return launches;
+  }
+
+  async function fetchCalendarLaunches() {
+    const html = await fetchText(`${MATTEL}/pages/launch-calendar`);
+    return extractCalendarLaunches(html);
+  }
+
   function extractShippingEta(html) {
     const match = String(html || "").match(/(?:ships?|expected\s+to\s+ship|shipping\s+by|ships\s+on\s+or\s+before)\s+([^<.]{3,100})/i);
     return match ? text(match[1]) : null;
@@ -263,9 +310,10 @@
     const storedUpcoming = Array.isArray(storedResult.upcomingProducts) ? storedResult.upcomingProducts : [];
     const storedByHandle = new Map(storedUpcoming.filter(p => p?.handle).map(p => [p.handle, p]));
 
-    const [catalog, sourceHandles] = await Promise.all([
+    const [catalog, sourceHandles, calendarLaunches] = await Promise.all([
       fetchCatalogProducts(),
-      fetchDiscoveryHandles()
+      fetchDiscoveryHandles(),
+      fetchCalendarLaunches()
     ]);
 
     const candidates = new Map();
@@ -296,7 +344,7 @@
       if (!html) return stored || null;
       if (/Page not found/i.test(html)) return null;
 
-      const launch = extractLaunchDate(html) || (
+      const launch = extractLaunchDate(html) || calendarLaunches.get(handle) || (
         stored && Number.isFinite(Number(stored.launchTimestamp))
           ? { text: stored.launchDate || null, timestamp: Number(stored.launchTimestamp) }
           : null
@@ -377,9 +425,10 @@
   async function smartScanHiddenProducts() {
     console.log("[HIDDEN] Smart Mattel discovery scan starting...");
 
-    const [catalog, sourceHandles] = await Promise.all([
+    const [catalog, sourceHandles, calendarLaunches] = await Promise.all([
       fetchCatalogProducts(),
-      fetchDiscoveryHandles()
+      fetchDiscoveryHandles(),
+      fetchCalendarLaunches()
     ]);
 
     const candidates = new Map();
@@ -400,7 +449,7 @@
       const html = await fetchText(`${MATTEL}/products/${product.handle}`);
       if (!html || /Page not found/i.test(html)) return null;
 
-      const launch = extractLaunchDate(html);
+      const launch = extractLaunchDate(html) || calendarLaunches.get(product.handle) || null;
       const scoreData = hiddenScore(product, html, launch);
       if (scoreData.score < 70) return null;
 
