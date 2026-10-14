@@ -339,7 +339,7 @@
       if (product.launchTimestamp <= now) continue;
       const key = `upcoming_${product.handle}`;
       if (canAlertItem(key, "UPCOMING_LAUNCH")) {
-        notifyBrowser("🚀 UPCOMING LAUNCH", product.title, product.url, false);
+        notifyBrowser("🚀 UPCOMING LAUNCH", product.title, product.url, true);
         sendWebhookEmbed({
           title: "🚀 UPCOMING LAUNCH",
           description: product.title,
