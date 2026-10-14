@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-function makeHarness() {
+function makeHarness(candidateHtml = "") {
   const storage = {};
   const availability = new Map();
   const windows = [];
@@ -51,7 +51,7 @@ function makeHarness() {
         }
       };
     }
-    return { ok: true, status: 200, async text() { return ""; } };
+    return { ok: true, status: 200, async text() { return candidateHtml; } };
   }
 
   const source = fs.readFileSync("race-assist/background.js", "utf8");
@@ -162,4 +162,27 @@ test("availability re-arms after a product sells out and returns", async () => {
   // Staying available must not trigger another duplicate handoff.
   await h.send({ action: "checkNow" });
   assert.equal(h.windows.length, 2);
+});
+
+
+test("discovery validates live product data, uses real titles, and filters non-RLC links", async () => {
+  const html = [
+    "/products/hot-wheels-rlc-exclusive-live-test",
+    "/products/hot-wheels-premium-enzo-ferrari-jhw22",
+    "/products/hot-wheels-elite-64-live-test"
+  ].join(" ");
+  const h = makeHarness(html);
+  const result = await h.send({ action: "discover" });
+  assert.equal(result.ok, true);
+
+  const candidates = h.storage.raceAssistCandidates;
+  assert.equal(candidates.length, 2);
+  assert.deepEqual(
+    candidates.map(p => p.handle).sort(),
+    ["hot-wheels-elite-64-live-test", "hot-wheels-rlc-exclusive-live-test"]
+  );
+  assert.ok(candidates.every(p => p.title === "Hot Wheels RLC Test Product"));
+  assert.ok(candidates.every(p => p.url.startsWith("https://creations.mattel.com/products/")));
+  assert.ok(candidates.every(p => p.variantId));
+  assert.ok(h.storage.candidatesUpdated > 0);
 });
