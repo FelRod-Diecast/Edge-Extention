@@ -2463,7 +2463,15 @@ async function scanMattel() {
         oldPrice !== newPrice &&
         baselineEstablished
       ) {
+        // Small synchronized price increases across the whole catalog are
+        // usually routine retail repricing. Keep those out of the urgent
+        // alert channel; always report decreases and substantial increases.
+        const materialPriceChange =
+          newPrice < oldPrice ||
+          (newPrice - oldPrice) >= Math.max(5, oldPrice * 0.20);
+
         if (
+          materialPriceChange &&
           canAlertItem(
             p.handle,
             "PRICE_CHANGE"
