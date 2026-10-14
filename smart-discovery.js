@@ -221,7 +221,7 @@
     if (haystack.includes("rlc") || haystack.includes("red line club")) score += 100;
     if (haystack.includes("elite 64") || haystack.includes("elite-64")) score += 90;
     if (haystack.includes("hot wheels") || haystack.includes("hot-wheels")) score += 50;
-    if (/\\b(?:skyline|mustang|porsche|ferrari|nissan|chevrolet|chevy|dodge|ford|toyota|datsun|pontiac|mazda|silverado|blazer)\\b/i.test(haystack)) score += 20;
+    if (/\b(?:skyline|mustang|porsche|ferrari|nissan|chevrolet|chevy|dodge|ford|toyota|datsun|pontiac|mazda|silverado|blazer)\b/i.test(haystack)) score += 20;
     return score;
   }
 
@@ -288,8 +288,8 @@
       const live = await checkLiveInventory(handle);
       if (live?.ok === true && live.available === true) return null;
 
-      const titleMatch = html.match(/property=["']og:title["']\\s+content=["']([^"']+)/i) || html.match(/<title>([^<]+)/i);
-      const title = text(titleMatch?.[1] || product.title || stored?.title || handle).replace(/\\s*\\|\\s*Mattel.*$/i, "");
+      const titleMatch = html.match(/property=["']og:title["']\s+content=["']([^"']+)/i) || html.match(/<title>([^<]+)/i);
+      const title = text(titleMatch?.[1] || product.title || stored?.title || handle).replace(/\s*\\|\s*Mattel.*$/i, "");
 
       const existingAlert = hiddenSeen[`UPCOMING_LAUNCH_upcoming_${handle}`] || hiddenSeen[`upcoming_${handle}`];
       const alertTime = Number(existingAlert?.timestamp);
