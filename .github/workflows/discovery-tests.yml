@@ -1,0 +1,24 @@
+name: Discovery checks
+
+on:
+  push:
+    branches:
+      - smart-upcoming-hidden
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  discovery-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate discovery script syntax
+        run: node --check smart-discovery.js
+      - name: Run discovery regression tests
+        run: node --test tests/smart-discovery.test.js
