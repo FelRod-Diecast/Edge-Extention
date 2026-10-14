@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "smart-discovery.js"), "utf8");
 
-function makeHarness({ storedUpcoming = [], sourceHtml = "", productResponse } = {}) {
+function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", productSitemapXml = "", productResponse } = {}) {
   const saved = { upcoming: null, hidden: null };
   const requestedProducts = [];
   const context = {
@@ -28,6 +28,12 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", productResponse } =
     fetch: async url => {
       if (url.includes("/products.json?")) {
         return { ok: true, json: async () => ({ products: [] }), text: async () => "" };
+      }
+      if (url.endsWith("/sitemap.xml")) {
+        return { ok: true, text: async () => sitemapXml };
+      }
+      if (url.includes("/sitemap_products_")) {
+        return { ok: true, text: async () => productSitemapXml };
       }
       if (url.includes("/pages/") || url.includes("/collections/")) {
         return { ok: true, text: async () => sourceHtml };
@@ -106,4 +112,33 @@ test("prioritizes an RLC candidate when more than 80 hidden candidates are found
     "the RLC candidate should be scanned ahead of lower-priority candidates"
   );
   assert.ok(harness.saved.hidden.some(product => product.handle === "rlc-exclusive-hot-wheels-model-081"));
+});
+
+ 
+test("discovers product handles from Shopify product sitemaps", async () => {
+  const handle = "rlc-exclusive-hot-wheels-sitemap-test";
+  const harness = makeHarness({
+    sitemapXml: '<sitemapindex><sitemap><loc>https://creations.mattel.com/sitemap_products_1.xml?from=1&amp;to=2</loc></sitemap></sitemapindex>',
+    productSitemapXml: '<urlset><url><loc>https://creations.mattel.com/products/' + handle + '</loc></url></urlset>'
+  });
+  await installed(harness);
+  await harness.self.scanHiddenProducts();
+  assert.ok(harness.requestedProducts.includes("https://creations.mattel.com/products/" + handle), "sitemap-discovered products should be inspected");
+});
+
+test("keeps a strong hidden discovery when its page already says sold out", async () => {
+  const handle = "rlc-exclusive-hot-wheels-sold-out-test";
+  const sourceHtml = '<a href="/products/' + handle + '">' + handle + '</a>';
+  const harness = makeHarness({
+    sourceHtml,
+    productResponse: async () => ({
+      ok: true,
+      text: async () => '<meta property="og:title" content="RLC Exclusive Hot Wheels Test Car"><div>Launches October 20, 2026 9:00 AM PT</div><div>Sold out</div><button>Add to cart</button>'
+    })
+  });
+  await installed(harness);
+  await harness.self.scanHiddenProducts();
+  const found = harness.saved.hidden.find(product => product.handle === handle);
+  assert.ok(found, "sold-out text must not automatically discard a strong hidden-product lead");
+  assert.ok(found.hiddenSignals.includes("Sold-out status observed"));
 });
