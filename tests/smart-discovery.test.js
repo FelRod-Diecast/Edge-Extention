@@ -9,6 +9,8 @@ const source = fs.readFileSync(path.join(__dirname, "..", "smart-discovery.js"),
 function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", productSitemapXml = "", productResponse } = {}) {
   const saved = { upcoming: null, hidden: null };
   const requestedProducts = [];
+  const browserAlerts = [];
+  const webhookAlerts = [];
   const context = {
     console,
     Date,
@@ -57,9 +59,9 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", pr
     itemsState: {},
     hiddenSeen: {},
     checkLiveInventory: async () => ({ ok: true, available: false }),
-    canAlertItem: () => false,
-    notifyBrowser: async () => false,
-    sendWebhookEmbed: async () => {},
+    canAlertItem: () => true,
+    notifyBrowser: async (...args) => { browserAlerts.push(args); return true; },
+    sendWebhookEmbed: async embed => { webhookAlerts.push(embed); },
     scanUpcomingProducts: async () => {},
     scanHiddenProducts: async () => {},
     saveUpcoming: products => { saved.upcoming = products; },
@@ -71,7 +73,7 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", sitemapXml = "", pr
   };
   context.self = self;
   vm.runInNewContext(source, context, { filename: "smart-discovery.js" });
-  return { context, self, saved, requestedProducts };
+  return { context, self, saved, requestedProducts, browserAlerts, webhookAlerts };
 }
 
 async function installed(harness) {
@@ -141,4 +143,6 @@ test("keeps a strong hidden discovery when its page already says sold out", asyn
   const found = harness.saved.hidden.find(product => product.handle === handle);
   assert.ok(found, "sold-out text must not automatically discard a strong hidden-product lead");
   assert.ok(found.hiddenSignals.includes("Sold-out status observed"));
+  assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"), "hidden discoveries must trigger a browser alert");
+  assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"), "hidden discoveries must trigger a Discord webhook");
 });
