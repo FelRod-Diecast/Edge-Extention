@@ -405,7 +405,9 @@
   }
 
   function hiddenScore(product, html, launch) {
-    const haystack = lower(`${product.handle || ""} ${product.title || ""} ${(product.tags || []).join(" ")}`);
+    const titleMatch = String(html || "").match(/property=["']og:title["']\s+content=["']([^"']+)/i) || String(html || "").match(/<title>([^<]+)/i);
+    const pageTitle = text(titleMatch?.[1] || "").replace(/\s*\|\s*Mattel.*$/i, "");
+    const haystack = lower(`${product.handle || ""} ${product.title || ""} ${pageTitle} ${(product.tags || []).join(" ")}`);
     const page = lower(html);
     let score = 0;
     const signals = [];
@@ -414,9 +416,9 @@
     if (haystack.includes("elite 64") || haystack.includes("elite-64")) { score += 40; signals.push("Elite 64"); }
     if (haystack.includes("hot wheels") || haystack.includes("hot-wheels")) { score += 25; signals.push("Hot Wheels"); }
     if (launch) { score += 25; signals.push("Launch date"); }
-    if (/add\s*to\s*cart|add-to-cart|buy\s*now|pre[- ]?order|reserve/i.test(page)) { score += 20; signals.push("Purchase signal"); }
+    if (/add\s*to\s*cart|add-to-cart|buy\s*now|pre[- ]?order|preorder|vorbestell(?:en|ung|bar)|reserve/i.test(page)) { score += 20; signals.push("Purchase signal"); }
     if (/ships?\s+(?:on|by)|expected\s+to\s+ship|shipping\s+by/i.test(page)) { score += 10; signals.push("Shipping ETA"); }
-    if (/sold\s*out|out\s+of\s+stock|unavailable/i.test(page)) { score -= 10; signals.push("Sold-out status observed"); }
+    if (/sold\s*out|out\s+of\s+stock|unavailable|ausverkauft/i.test(page)) { score -= 10; signals.push("Sold-out status observed"); }
     if (isBlocked(haystack)) { score -= 100; signals.push("Non-vehicle"); }
 
     return { score, signals };
