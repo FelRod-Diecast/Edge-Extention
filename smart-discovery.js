@@ -142,7 +142,7 @@
 
   function extractHandles(html) {
     const handles = new Set();
-    const re = /\/products\/([a-z0-9][a-z0-9-]{1,150})(?:[?#"'\\/]|$)/gi;
+    const re = /\/products\/([a-z0-9][a-z0-9-]{1,150})(?:[?#"'\\/<]|$)/gi;
     let match;
     while ((match = re.exec(String(html || "")))) handles.add(match[1].toLowerCase());
     return [...handles];
