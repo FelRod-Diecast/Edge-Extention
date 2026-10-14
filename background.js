@@ -409,46 +409,64 @@ function isHotWheels(p) {
   );
 }
 
+let webhookSendQueue = Promise.resolve();
+let lastWebhookSendAt = 0;
+
 async function sendWebhookEmbed(embed) {
-  try {
-    const {
-      discordWebhookUrl
-    } = await chrome.storage.local.get([
-      "discordWebhookUrl"
-    ]);
+  const send = async () => {
+    try {
+      const { discordWebhookUrl } = await chrome.storage.local.get(["discordWebhookUrl"]);
+      if (!discordWebhookUrl) return;
 
-    if (!discordWebhookUrl) {
-      return;
-    }
+      // Discord webhooks have tight rate limits. Serialize sends so a catalog-wide
+      // price update cannot fire dozens of requests at once.
+      const waitMs = Math.max(0, 1100 - (Date.now() - lastWebhookSendAt));
+      if (waitMs) await new Promise(resolve => setTimeout(resolve, waitMs));
 
-    const response = await fetch(
-      discordWebhookUrl,
-      {
+      const payload = {
+        username: "Mattel Drop Tracker",
+        avatar_url: "https://creations.mattel.com/cdn/shop/files/Hot_Wheels_Logo.png",
+        embeds: [embed]
+      };
+
+      let response = await fetch(discordWebhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          username: "Mattel Drop Tracker",
-          avatar_url:
-            "https://creations.mattel.com/cdn/shop/files/Hot_Wheels_Logo.png",
-          embeds: [embed]
-        })
-      }
-    );
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      lastWebhookSendAt = Date.now();
 
-    if (!response.ok) {
-      console.warn(
-        "[DISCORD] Webhook returned HTTP",
-        response.status
-      );
+      if (response.status === 429) {
+        const retryHeader = Number(response.headers?.get?.("Retry-After"));
+        let retryMs = Number.isFinite(retryHeader) && retryHeader > 0
+          ? retryHeader * 1000
+          : 2000;
+        try {
+          const details = await response.clone().json();
+          if (Number.isFinite(Number(details.retry_after))) {
+            retryMs = Math.max(retryMs, Number(details.retry_after) * 1000);
+          }
+        } catch (_) {}
+        console.warn("[DISCORD] Rate limited; retrying queued alert after", retryMs, "ms");
+        await new Promise(resolve => setTimeout(resolve, retryMs));
+        response = await fetch(discordWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        lastWebhookSendAt = Date.now();
+      }
+
+      if (!response.ok) {
+        console.warn("[DISCORD] Webhook returned HTTP", response.status);
+      }
+    } catch (err) {
+      console.error("[DISCORD WEBHOOK ERROR]", err);
     }
-  } catch (err) {
-    console.error(
-      "[DISCORD WEBHOOK ERROR]",
-      err
-    );
-  }
+  };
+
+  webhookSendQueue = webhookSendQueue.then(send, send);
+  return webhookSendQueue;
 }
 
 async function checkLiveInventory(handle) {
