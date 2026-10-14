@@ -166,38 +166,55 @@ async function addManualProduct(url, quantity) {
 }
 
 async function discoverCandidates() {
-  const candidates = [];
+  const handles = new Set();
   const sources = [
     MATTEL + "/collections/red-line-club",
     MATTEL + "/pages/launch-calendar"
   ];
 
+  // Collect product URLs, then validate each against Mattel's live product JSON.
+  // Storefront HTML can contain stale or unrelated product links.
   for (const url of sources) {
     try {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
       const html = await response.text();
-      const re = /\/products\/([a-z0-9][a-z0-9-]{1,150})/gi;
+      const re = /\\/products\\/([a-z0-9][a-z0-9-]{1,150})/gi;
       let match;
-      const seen = new Set();
-
-      while ((match = re.exec(html)) && candidates.length < 100) {
-        const handle = match[1].toLowerCase();
-        if (seen.has(handle)) continue;
-        seen.add(handle);
-        if (!/(rlc|red-line-club|elite-64)/i.test(handle)) continue;
-        candidates.push({
-          handle,
-          title: handle.replace(/-/g, " "),
-          url: MATTEL + "/products/" + handle
-        });
+      while ((match = re.exec(html)) && handles.size < 100) {
+        handles.add(match[1].toLowerCase());
       }
     } catch (_) {}
   }
 
-  const unique = [...new Map(candidates.map(p => [p.handle, p])).values()];
+  const queue = [...handles];
+  const validated = [];
+  let next = 0;
+
+  // Keep concurrency bounded to avoid flooding the storefront with requests.
+  async function worker() {
+    while (next < queue.length) {
+      const handle = queue[next++];
+      try {
+        const product = await getProduct(handle);
+        if (!isRlcProduct(product)) continue;
+        validated.push({
+          handle: product.handle,
+          title: product.title,
+          url: product.url,
+          variantId: product.variantId,
+          available: product.available
+        });
+      } catch (_) {
+        // Stale links and temporary failures aren't shown as verified candidates.
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(5, queue.length) }, () => worker()));
+  validated.sort((a, b) => a.title.localeCompare(b.title));
   await chrome.storage.local.set({
-    raceAssistCandidates: unique,
+    raceAssistCandidates: validated,
     candidatesUpdated: Date.now()
   });
 }
