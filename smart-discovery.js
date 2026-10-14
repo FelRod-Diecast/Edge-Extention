@@ -148,7 +148,7 @@
       // Limit the search window so a neighboring card is less likely to leak
       // its launch date into this product.
       const context = source.slice(Math.max(0, index - 500), Math.min(source.length, index + 500));
-      const dateMatch = context.match(/\\b(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?\\s*,?\\s*)?(January|Jan|February|Feb|March|Mar|April|Apr|May|June|Jun|July|Jul|August|Aug|September|Sep|October|Oct|November|Nov|December|Dec)\\s+(\\d{1,2})(?:,?\\s+(\\d{4}))?[\\s\\S]{0,120}?\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)\\s*PT\\b/i);
+      const dateMatch = context.match(/\b(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?\s*,?\s*)?(January|Jan|February|Feb|March|Mar|April|Apr|May|June|Jun|July|Jul|August|Aug|September|Sep|October|Oct|November|Nov|December|Dec)\s+(\d{1,2})(?:,?\s+(\d{4}))?[\s\S]{0,120}?\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*PT\b/i);
       if (!dateMatch) continue;
 
       const monthNames = {
