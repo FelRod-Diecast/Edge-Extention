@@ -18,6 +18,7 @@
 
   const DISCOVERY_SOURCES = [
     `${MATTEL}/pages/launch-calendar`,
+    "https://orangetrackdiecast.com/upcoming-sales/",
     `${MATTEL}/pages/hot-wheels-collectors`,
     `${MATTEL}/collections/hot-wheels`,
     `${MATTEL}/collections/red-line-club`,
