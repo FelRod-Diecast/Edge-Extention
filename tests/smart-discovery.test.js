@@ -40,7 +40,7 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", launchCalendarHtml,
       if (url.endsWith("/pages/launch-calendar")) {
         return { ok: true, text: async () => launchCalendarHtml ?? sourceHtml };
       }
-      if (url.includes("/pages/") || url.includes("/collections/")) {
+      if (url.includes("/pages/") || url.includes("/collections/") || url.includes("orangetrackdiecast.com/upcoming-sales")) {
         return { ok: true, text: async () => sourceHtml };
       }
       if (url.includes("/products/")) {
@@ -170,4 +170,24 @@ test("discovers the Datsun JPM47 as hidden from its localized RLC preorder page 
   );
   assert.ok(harness.browserAlerts.some(([title]) => title === "👻 NEW HIDDEN DROP FOUND"), "the Datsun should trigger a browser alert");
   assert.ok(harness.webhookAlerts.some(embed => embed.title === "👻 NEW HIDDEN DROP FOUND"), "the Datsun should trigger a Discord webhook");
+});
+
+
+test("uses Orange Track Diecast upcoming sales as an additional product discovery source", async () => {
+  const handle = "hot-wheels-rlc-exclusive-datsun-240z-jpm47";
+  const sourceHtml = '<article><a href="https://creations.mattel.com/products/' + handle + '">RLC: Datsun 240Z + Chase</a></article>';
+  const harness = makeHarness({
+    sourceHtml,
+    productResponse: async () => ({
+      ok: true,
+      text: async () => '<meta property="og:title" content="Hot Wheels RLC Exclusive Datsun 240Z"><div>Vorbestellen</div><button>Ausverkauft</button>'
+    })
+  });
+  await installed(harness);
+  await harness.self.scanHiddenProducts();
+  assert.ok(
+    harness.requestedProducts.includes("https://creations.mattel.com/products/" + handle),
+    "products linked from Orange Track Diecast should be added to the scanner candidate pool"
+  );
+  assert.ok(harness.saved.hidden.some(product => product.handle === handle), "the linked Datsun should be eligible for hidden discovery");
 });
