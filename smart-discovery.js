@@ -187,9 +187,29 @@
   async function fetchDiscoveryHandles() {
     const handles = new Set();
 
-    const pages = await Promise.all(DISCOVERY_SOURCES.map(fetchText));
+    // Combine storefront links with Shopify product sitemaps so products omitted
+    // from current collections can still enter the candidate pool.
+    const [pages, sitemap] = await Promise.all([
+      Promise.all(DISCOVERY_SOURCES.map(fetchText)),
+      fetchText(`${MATTEL}/sitemap.xml`)
+    ]);
+
     for (const html of pages) {
       for (const handle of extractHandles(html || "")) handles.add(handle);
+    }
+
+    const sitemapLocs = [...String(sitemap || "").matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)]
+      .map(match => text(match[1]).replace(/&amp;/g, "&"));
+    for (const handle of extractHandles(sitemap || "")) handles.add(handle);
+
+    // Shopify splits product URLs across sitemap_products_*.xml files.
+    // Bound fan-out to keep discovery predictable if the sitemap is unusually large.
+    const productSitemaps = sitemapLocs
+      .filter(url => /\/sitemap_products_[^/?]+\.xml(?:[?&]|$)/i.test(url))
+      .slice(0, 20);
+    const productSitemapBodies = await Promise.all(productSitemaps.map(fetchText));
+    for (const xml of productSitemapBodies) {
+      for (const handle of extractHandles(xml || "")) handles.add(handle);
     }
 
     return handles;
@@ -348,7 +368,7 @@
     if (launch) { score += 25; signals.push("Launch date"); }
     if (/add\s*to\s*cart|add-to-cart|buy\s*now|pre[- ]?order|reserve/i.test(page)) { score += 20; signals.push("Purchase signal"); }
     if (/ships?\s+(?:on|by)|expected\s+to\s+ship|shipping\s+by/i.test(page)) { score += 10; signals.push("Shipping ETA"); }
-    if (/sold\s*out|out\s+of\s+stock|unavailable/i.test(page)) { score -= 80; signals.push("Sold out"); }
+    if (/sold\s*out|out\s+of\s+stock|unavailable/i.test(page)) { score -= 10; signals.push("Sold-out status observed"); }
     if (isBlocked(haystack)) { score -= 100; signals.push("Non-vehicle"); }
 
     return { score, signals };
@@ -382,7 +402,7 @@
 
       const launch = extractLaunchDate(html);
       const scoreData = hiddenScore(product, html, launch);
-      if (scoreData.score < 70 || SOLD_OUT_RE.test(html)) return null;
+      if (scoreData.score < 70) return null;
 
       const titleMatch = html.match(/property=["']og:title["']\s+content=["']([^"']+)/i) || html.match(/<title>([^<]+)/i);
       const title = text(titleMatch?.[1] || product.title || product.handle).replace(/\s*\|\s*Mattel.*$/i, "");
