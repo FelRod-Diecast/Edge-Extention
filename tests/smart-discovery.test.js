@@ -59,16 +59,20 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", productResponse } =
     saveUpcoming: products => { saved.upcoming = products; },
     saveHidden: products => { saved.hidden = products; }
   };
-  context.self = context;
+  const self = {
+    scanUpcomingProducts: async () => {},
+    scanHiddenProducts: async () => {}
+  };
+  context.self = self;
   vm.runInNewContext(source, context, { filename: "smart-discovery.js" });
-  return { context, saved, requestedProducts };
+  return { context, self, saved, requestedProducts };
 }
 
 async function installed(harness) {
   await Promise.resolve();
   await Promise.resolve();
-  assert.equal(typeof harness.context.scanUpcomingProducts, "function");
-  assert.equal(typeof harness.context.scanHiddenProducts, "function");
+  assert.notEqual(harness.self.scanUpcomingProducts.toString(), "(async () => {})");
+  assert.notEqual(harness.self.scanHiddenProducts.toString(), "(async () => {})");
 }
 
 test("keeps known upcoming products when a product-page request temporarily fails", async () => {
@@ -85,7 +89,7 @@ test("keeps known upcoming products when a product-page request temporarily fail
     productResponse: async () => ({ ok: false, status: 503, text: async () => "" })
   });
   await installed(harness);
-  await harness.context.scanUpcomingProducts();
+  await harness.self.scanUpcomingProducts();
   assert.deepEqual(JSON.parse(JSON.stringify(harness.saved.upcoming)), [known]);
 });
 
@@ -95,7 +99,7 @@ test("prioritizes an RLC candidate when more than 80 hidden candidates are found
   const sourceHtml = handles.map(handle => `<a href="/products/${handle}">${handle}</a>`).join("\n");
   const harness = makeHarness({ sourceHtml });
   await installed(harness);
-  await harness.context.scanHiddenProducts();
+  await harness.self.scanHiddenProducts();
   assert.equal(harness.requestedProducts.length, 80);
   assert.ok(
     harness.requestedProducts.includes("https://creations.mattel.com/products/rlc-exclusive-hot-wheels-model-081"),
