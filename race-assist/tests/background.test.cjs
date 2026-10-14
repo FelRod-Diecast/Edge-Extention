@@ -134,3 +134,32 @@ test("product already available when added does not trigger a false restock", as
   await h.send({ action: "checkNow" });
   assert.equal(h.windows.length, 0);
 });
+
+test("availability re-arms after a product sells out and returns", async () => {
+  const h = makeHarness();
+  const handle = "hot-wheels-rlc-exclusive-rearm-test";
+  h.availability.set(handle, true);
+
+  const added = await h.send({
+    action: "addManualProduct",
+    url: "https://creations.mattel.com/products/" + handle,
+    quantity: 2
+  });
+  assert.equal(added.ok, true);
+  assert.equal(added.product.wasAvailable, true);
+
+  // A sellout must reset the transition latch without opening windows.
+  h.availability.set(handle, false);
+  await h.send({ action: "checkNow" });
+  assert.equal(h.windows.length, 0);
+
+  // A later restock must trigger the handoff again.
+  h.availability.set(handle, true);
+  await h.send({ action: "checkNow" });
+  assert.equal(h.windows.length, 2);
+  assert.ok(h.windows.some(w => /\/cart\/222:2$/.test(w.url)));
+
+  // Staying available must not trigger another duplicate handoff.
+  await h.send({ action: "checkNow" });
+  assert.equal(h.windows.length, 2);
+});
