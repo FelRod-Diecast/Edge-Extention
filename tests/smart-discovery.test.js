@@ -54,6 +54,8 @@ function makeHarness({ storedUpcoming = [], sourceHtml = "", productResponse } =
     canAlertItem: () => false,
     notifyBrowser: async () => false,
     sendWebhookEmbed: async () => {},
+    scanUpcomingProducts: async () => {},
+    scanHiddenProducts: async () => {},
     saveUpcoming: products => { saved.upcoming = products; },
     saveHidden: products => { saved.hidden = products; }
   };
